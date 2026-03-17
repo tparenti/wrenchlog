@@ -1,65 +1,144 @@
 # WrenchLog
 
-Simple Dockerized garage maintenance tracker for vehicles and equipment.
+WrenchLog is a Dockerized maintenance tracker for people, vehicles, and equipment. It uses a Flask API with SQLite for persistence and a React frontend for the UI.
 
-Overview
-- Backend: Flask + SQLite (serves API on port 5000)
-- Frontend: React app served by Flask in the image-only deployment path
+## Stack
 
-Development (recommended)
+- Backend: Flask, Flask-SQLAlchemy, SQLite, Gunicorn
+- Frontend: React, Vite
+- Containers: Docker Compose
 
-By default Docker Compose will read `docker-compose.override.yml` (development override).
-The override mounts your local source into the containers for development. For the frontend it
-also preserves the container's `/app/node_modules` with an anonymous volume so the image-installed
-dependencies are not hidden.
+## Current Behavior
 
-Start everything for development (hot reload / HMR):
+- In production-style runs, the React app and the API are served from the same host on port `5000`.
+- In development, Flask runs on `5000` and the Vite dev server runs on `5173` with hot reload.
+- The frontend uses `/api` automatically in same-host deployments.
+- During Vite development, the frontend falls back to the current hostname on port `5000` unless `VITE_API_BASE_URL` is set.
+
+## Features
+
+- Create and edit people
+- Create and edit vehicles
+- Create and edit equipment
+- Assign vehicles and equipment to people
+- Add, edit, and delete maintenance entries
+- View person detail pages with related vehicles and equipment
+- Responsive React UI with light and dark themes
+
+## Run Modes
+
+### Development
+
+`docker compose up --build`
+
+What this does:
+
+- Starts the Flask backend with the project mounted into the container
+- Starts the Vite frontend dev server with hot reload
+- Uses `docker-compose.override.yml` automatically
+
+URLs:
+
+- Frontend: `http://localhost:5173`
+- Backend/API: `http://localhost:5000`
+
+Useful development commands:
 
 ```bash
 docker compose up --build
-```
-
-Start only the frontend dev server (useful while iterating UI):
-
-```bash
 docker compose up --build frontend
-```
-
-Start only the backend API:
-
-```bash
 docker compose up --build wrenchlog
 ```
 
-Notes:
-- Frontend dev server: http://localhost:5173
-- Backend/API: http://localhost:5000
-- The dev override mounts your source tree so edits show immediately.
-- API base URL is configurable with `VITE_API_BASE_URL`. If unset, the frontend defaults to the current hostname and port `5000` during Vite development, and to `/api` when served behind the same host in production.
+### Image-only deployment
 
-Production / Image-only
+`docker compose -f docker-compose.yml up --build`
 
-The base `docker-compose.yml` builds the React frontend into the backend image and serves both
-the UI and the API from the same host on port `5000`. You can run Compose without the override
-to use this single-host deployment path:
+What this does:
 
-```bash
-docker compose -f docker-compose.yml up --build
-```
+- Builds the React frontend into static assets
+- Copies those assets into the backend image
+- Serves both the UI and the API from the Flask container on port `5000`
 
-The development override still uses the Vite dev server with bind mounts and HMR.
+URL:
 
-This split is intentional:
+- App and API: `http://localhost:5000`
 
-1. `docker compose up --build` uses the override for frontend development.
-2. `docker compose -f docker-compose.yml up --build` serves the React app and `/api` from the same Flask container on port `5000`.
+Examples:
 
-If your development frontend needs to talk to a backend on a different URL, set `VITE_API_BASE_URL` before starting Compose. Example values:
+- App: `http://localhost:5000`
+- API: `http://localhost:5000/api/people`
+
+## API Base URL Configuration
+
+The frontend supports an override via `VITE_API_BASE_URL`.
+
+Use this when:
+
+- The frontend dev server needs to call a backend on another host
+- You are testing against a remote API
+
+Examples:
 
 - `http://192.168.1.50:5000/api`
 - `https://example.com/api`
 
-Features:
-- Create People (owners/customers)
-- Create Vehicles and Equipment and link to People
-- Record maintenance entries per vehicle or equipment
+Example PowerShell session:
+
+```powershell
+$env:VITE_API_BASE_URL = "http://192.168.1.50:5000/api"
+docker compose up --build
+```
+
+Example bash session:
+
+```bash
+export VITE_API_BASE_URL="http://192.168.1.50:5000/api"
+docker compose up --build
+```
+
+## Compose Layout
+
+### `docker-compose.yml`
+
+Base image-only deployment:
+
+- Runs the Flask app on port `5000`
+- Serves the built React frontend from the same container
+- Intended for simple deployment and launch testing
+
+### `docker-compose.override.yml`
+
+Development-only override:
+
+- Mounts backend source into the Flask container
+- Builds the frontend with the `dev` target
+- Mounts frontend source into the Vite container
+- Preserves container `node_modules` with an anonymous volume
+
+## Notes
+
+- If you changed the compose services recently, Docker may leave old containers around. To clean them up, run:
+
+```bash
+docker compose -f docker-compose.yml up -d --build --remove-orphans
+```
+
+- The old server-rendered Flask templates are no longer used in the image-only React deployment path.
+
+## Repository Structure
+
+```text
+.
+|-- app.py
+|-- models.py
+|-- Dockerfile
+|-- docker-compose.yml
+|-- docker-compose.override.yml
+|-- frontend/
+|   |-- src/
+|   |-- Dockerfile
+|   `-- package.json
+|-- templates/
+`-- requirements.txt
+```
