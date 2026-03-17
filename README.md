@@ -9,8 +9,9 @@ Overview
 Development (recommended)
 
 By default Docker Compose will read `docker-compose.override.yml` (development override).
-The override mounts your local `./frontend` into the container and preserves the container's
-`/app/node_modules` with an anonymous volume so the image-installed dependencies are not hidden.
+The override mounts your local source into the containers for development. For the frontend it
+also preserves the container's `/app/node_modules` with an anonymous volume so the image-installed
+dependencies are not hidden.
 
 Start everything for development (hot reload / HMR):
 
@@ -51,7 +52,7 @@ The development override still uses the Vite dev server with bind mounts and HMR
 This split is intentional:
 
 1. `docker compose up --build` uses the override for frontend development.
-2. `docker compose -f docker-compose.yml up --build` runs the built frontend image only.
+2. `docker compose -f docker-compose.yml up --build` runs image-only backend and frontend services.
 
 Features:
 - Create People (owners/customers)

@@ -1,4 +1,9 @@
 services:
+  wrenchlog:
+    volumes:
+      - .:/app
+    environment:
+      - FLASK_ENV=development
   frontend:
     volumes:
       - ./frontend:/app:delegated
