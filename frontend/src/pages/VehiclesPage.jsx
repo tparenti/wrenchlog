@@ -7,6 +7,7 @@ export default function VehiclesPage(){
   const [vehicles, setVehicles] = useState([])
   const [people, setPeople] = useState([])
   const [form, setForm] = useState({year:'', make:'', model:'', owner_id:''})
+  const [ownerFilter, setOwnerFilter] = useState('all')
 
   useEffect(()=>{fetch();}, [])
   async function fetch(){
@@ -20,6 +21,13 @@ export default function VehiclesPage(){
     setForm({year:'', make:'', model:'', owner_id:''})
     fetch()
   }
+
+  const filteredVehicles = vehicles.filter(vehicle => {
+    if (ownerFilter === 'all') return true
+    if (ownerFilter === 'unassigned') return !vehicle.owner_id
+    return String(vehicle.owner_id) === ownerFilter
+  })
+
   return (
     <div className="stack">
       <div className="page-head">
@@ -50,9 +58,44 @@ export default function VehiclesPage(){
         </form>
       </section>
 
-      {vehicles.length ? (
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h3 className="section-title">Filter by owner</h3>
+            <p className="muted">Show all vehicles, unassigned vehicles, or only one owner's records.</p>
+          </div>
+        </div>
+        <div className="action-row">
+          <button
+            type="button"
+            className={ownerFilter === 'all' ? 'button button-primary' : 'button button-secondary'}
+            onClick={() => setOwnerFilter('all')}
+          >
+            All vehicles
+          </button>
+          <button
+            type="button"
+            className={ownerFilter === 'unassigned' ? 'button button-primary' : 'button button-secondary'}
+            onClick={() => setOwnerFilter('unassigned')}
+          >
+            Unassigned
+          </button>
+          {people.map(person => (
+            <button
+              key={person.id}
+              type="button"
+              className={ownerFilter === String(person.id) ? 'button button-primary' : 'button button-secondary'}
+              onClick={() => setOwnerFilter(String(person.id))}
+            >
+              {person.name}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {filteredVehicles.length ? (
         <section className="record-grid">
-          {vehicles.map(v=> {
+          {filteredVehicles.map(v=> {
             const owner = people.find(p=>p.id===v.owner_id)
             return (
               <article key={v.id} className="record-card">
@@ -72,8 +115,12 @@ export default function VehiclesPage(){
         </section>
       ) : (
         <div className="empty-state">
-          <h3 className="section-title">No vehicles yet</h3>
-          <p className="muted">Add your first vehicle to start tracking maintenance history.</p>
+          <h3 className="section-title">No matching vehicles</h3>
+          <p className="muted">
+            {vehicles.length
+              ? 'No vehicles match the selected owner filter.'
+              : 'Add your first vehicle to start tracking maintenance history.'}
+          </p>
         </div>
       )}
     </div>

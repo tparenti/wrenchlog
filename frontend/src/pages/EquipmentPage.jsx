@@ -7,6 +7,7 @@ export default function EquipmentPage(){
   const [equipment, setEquipment] = useState([])
   const [people, setPeople] = useState([])
   const [form, setForm] = useState({name:'', serial:'', owner_id:''})
+  const [ownerFilter, setOwnerFilter] = useState('all')
 
   useEffect(()=>{fetch();}, [])
   async function fetch(){
@@ -20,6 +21,13 @@ export default function EquipmentPage(){
     setForm({name:'', serial:'', owner_id:''})
     fetch()
   }
+
+  const filteredEquipment = equipment.filter(item => {
+    if (ownerFilter === 'all') return true
+    if (ownerFilter === 'unassigned') return !item.owner_id
+    return String(item.owner_id) === ownerFilter
+  })
+
   return (
     <div className="stack">
       <div className="page-head">
@@ -49,9 +57,44 @@ export default function EquipmentPage(){
         </form>
       </section>
 
-      {equipment.length ? (
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h3 className="section-title">Filter by owner</h3>
+            <p className="muted">Narrow the equipment list to one owner or show unassigned assets.</p>
+          </div>
+        </div>
+        <div className="action-row">
+          <button
+            type="button"
+            className={ownerFilter === 'all' ? 'button button-primary' : 'button button-secondary'}
+            onClick={() => setOwnerFilter('all')}
+          >
+            All equipment
+          </button>
+          <button
+            type="button"
+            className={ownerFilter === 'unassigned' ? 'button button-primary' : 'button button-secondary'}
+            onClick={() => setOwnerFilter('unassigned')}
+          >
+            Unassigned
+          </button>
+          {people.map(person => (
+            <button
+              key={person.id}
+              type="button"
+              className={ownerFilter === String(person.id) ? 'button button-primary' : 'button button-secondary'}
+              onClick={() => setOwnerFilter(String(person.id))}
+            >
+              {person.name}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {filteredEquipment.length ? (
         <section className="record-grid">
-          {equipment.map(item=> {
+          {filteredEquipment.map(item=> {
             const owner = people.find(p=>p.id===item.owner_id)
             return (
               <article key={item.id} className="record-card">
@@ -74,8 +117,12 @@ export default function EquipmentPage(){
         </section>
       ) : (
         <div className="empty-state">
-          <h3 className="section-title">No equipment yet</h3>
-          <p className="muted">Add your first asset to start logging service notes and ownership.</p>
+          <h3 className="section-title">No matching equipment</h3>
+          <p className="muted">
+            {equipment.length
+              ? 'No equipment matches the selected owner filter.'
+              : 'Add your first asset to start logging service notes and ownership.'}
+          </p>
         </div>
       )}
     </div>
