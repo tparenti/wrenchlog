@@ -1,11 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
 from models import db, Person, Vehicle, Equipment, Maintenance
 import os
 
-app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
+frontend_dist = os.path.join(basedir, 'frontend_dist')
+
+app = Flask(__name__, static_folder=frontend_dist, static_url_path='')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'wrenchlog.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
@@ -13,13 +14,6 @@ CORS(app)
 
 with app.app_context():
     db.create_all()
-
-@app.route('/')
-def index():
-    people = Person.query.all()
-    vehicles = Vehicle.query.all()
-    equipment = Equipment.query.all()
-    return render_template('index.html', people=people, vehicles=vehicles, equipment=equipment)
 
 # --- API endpoints for React frontend ---
 def person_to_dict(p):
@@ -184,77 +178,19 @@ def api_maintenance_entry(entry_id):
     return jsonify({'status': 'deleted'})
 
 
-# People
-@app.route('/people', methods=['GET','POST'])
-def people():
-    if request.method == 'POST':
-        name = request.form.get('name')
-        phone = request.form.get('phone')
-        if name:
-            p = Person(name=name, phone=phone)
-            db.session.add(p)
-            db.session.commit()
-        return redirect(url_for('people'))
-    all_people = Person.query.all()
-    return render_template('people.html', people=all_people)
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
+    requested_path = os.path.join(frontend_dist, path)
 
-# Vehicles
-@app.route('/vehicles', methods=['GET','POST'])
-def vehicles():
-    if request.method == 'POST':
-        vin = request.form.get('vin')
-        make = request.form.get('make')
-        model = request.form.get('model')
-        year = request.form.get('year')
-        owner_id = request.form.get('owner_id') or None
-        v = Vehicle(vin=vin, make=make, model=model, year=year, owner_id=owner_id)
-        db.session.add(v)
-        db.session.commit()
-        return redirect(url_for('vehicles'))
-    all_vehicles = Vehicle.query.all()
-    people = Person.query.all()
-    return render_template('vehicles.html', vehicles=all_vehicles, people=people)
+    if path and os.path.isfile(requested_path):
+        return send_from_directory(frontend_dist, path)
 
-@app.route('/vehicle/<int:vehicle_id>/maintenance', methods=['GET','POST'])
-def vehicle_maintenance(vehicle_id):
-    v = Vehicle.query.get_or_404(vehicle_id)
-    if request.method == 'POST':
-        title = request.form.get('title')
-        notes = request.form.get('notes')
-        m = Maintenance(title=title, notes=notes, vehicle_id=vehicle_id)
-        db.session.add(m)
-        db.session.commit()
-        return redirect(url_for('vehicle_maintenance', vehicle_id=vehicle_id))
-    entries = Maintenance.query.filter_by(vehicle_id=vehicle_id).order_by(Maintenance.created_at.desc()).all()
-    return render_template('maintenance.html', asset=v, entries=entries, asset_type='vehicle')
+    index_path = os.path.join(frontend_dist, 'index.html')
+    if os.path.isfile(index_path):
+        return send_from_directory(frontend_dist, 'index.html')
 
-# Equipment
-@app.route('/equipment', methods=['GET','POST'])
-def equipment():
-    if request.method == 'POST':
-        name = request.form.get('name')
-        serial = request.form.get('serial')
-        owner_id = request.form.get('owner_id') or None
-        e = Equipment(name=name, serial=serial, owner_id=owner_id)
-        db.session.add(e)
-        db.session.commit()
-        return redirect(url_for('equipment'))
-    all_eq = Equipment.query.all()
-    people = Person.query.all()
-    return render_template('equipment.html', equipment=all_eq, people=people)
-
-@app.route('/equipment/<int:equipment_id>/maintenance', methods=['GET','POST'])
-def equipment_maintenance(equipment_id):
-    e = Equipment.query.get_or_404(equipment_id)
-    if request.method == 'POST':
-        title = request.form.get('title')
-        notes = request.form.get('notes')
-        m = Maintenance(title=title, notes=notes, equipment_id=equipment_id)
-        db.session.add(m)
-        db.session.commit()
-        return redirect(url_for('equipment_maintenance', equipment_id=equipment_id))
-    entries = Maintenance.query.filter_by(equipment_id=equipment_id).order_by(Maintenance.created_at.desc()).all()
-    return render_template('maintenance.html', asset=e, entries=entries, asset_type='equipment')
+    return jsonify({'error': 'Frontend assets are not available in this environment.'}), 503
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

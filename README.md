@@ -4,7 +4,7 @@ Simple Dockerized garage maintenance tracker for vehicles and equipment.
 
 Overview
 - Backend: Flask + SQLite (serves API on port 5000)
-- Frontend: React app served on port 5173
+- Frontend: React app served by Flask in the image-only deployment path
 
 Development (recommended)
 
@@ -39,10 +39,9 @@ Notes:
 
 Production / Image-only
 
-The base `docker-compose.yml` does not mount your local frontend directory. It builds the
-frontend into static assets and serves them from the container, so it no longer depends on
-the Vite dev server at runtime. You can run Compose without the override to use the image
-artifacts:
+The base `docker-compose.yml` builds the React frontend into the backend image and serves both
+the UI and the API from the same host on port `5000`. You can run Compose without the override
+to use this single-host deployment path:
 
 ```bash
 docker compose -f docker-compose.yml up --build
@@ -53,9 +52,9 @@ The development override still uses the Vite dev server with bind mounts and HMR
 This split is intentional:
 
 1. `docker compose up --build` uses the override for frontend development.
-2. `docker compose -f docker-compose.yml up --build` runs image-only backend and frontend services.
+2. `docker compose -f docker-compose.yml up --build` serves the React app and `/api` from the same Flask container on port `5000`.
 
-If your backend is hosted on a different URL, set `VITE_API_BASE_URL` before starting Compose. Example values:
+If your development frontend needs to talk to a backend on a different URL, set `VITE_API_BASE_URL` before starting Compose. Example values:
 
 - `http://192.168.1.50:5000/api`
 - `https://example.com/api`
