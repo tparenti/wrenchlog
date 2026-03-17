@@ -1,6 +1,13 @@
-FROM node:18
+FROM node:20-bullseye AS build
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install
+COPY package.json ./
+RUN npm install --include=optional
 COPY . .
-CMD ["npm", "run", "dev", "--", "--host"]
+RUN npm run build
+
+FROM node:20-bullseye
+WORKDIR /app
+RUN npm install -g serve
+COPY --from=build /app/dist ./dist
+EXPOSE 5173
+CMD ["serve", "-s", "dist", "-l", "5173"]
