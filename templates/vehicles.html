@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h3>Vehicles</h3>
+  <form method="post" class="row g-3 mb-4">
+    <div class="col-md-3"><input name="year" class="form-control" placeholder="Year"></div>
+    <div class="col-md-3"><input name="make" class="form-control" placeholder="Make"></div>
+    <div class="col-md-3"><input name="model" class="form-control" placeholder="Model"></div>
+    <div class="col-md-2">
+      <select name="owner_id" class="form-select">
+        <option value="">No owner</option>
+        {% for p in people %}
+          <option value="{{ p.id }}">{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-1"><button class="btn btn-primary">Add</button></div>
+  </form>
+  <ul class="list-group">
+    {% for v in vehicles %}
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div>
+          {{ v.year }} {{ v.make }} {{ v.model }} {% if v.owner %}— {{ v.owner.name }}{% endif %}
+        </div>
+        <div>
+          <a class="btn btn-sm btn-outline-secondary" href="/vehicle/{{ v.id }}/maintenance">Maintenance</a>
+        </div>
+      </li>
+    {% else %}
+      <li class="list-group-item">No vehicles</li>
+    {% endfor %}
+  </ul>
+{% endblock %}
