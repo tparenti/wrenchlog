@@ -35,6 +35,7 @@ Notes:
 - Frontend dev server: http://localhost:5173
 - Backend/API: http://localhost:5000
 - The dev override mounts your source tree so edits show immediately.
+- API base URL is configurable with `VITE_API_BASE_URL`. If unset, the frontend defaults to the current hostname and port `5000` during Vite development, and to `/api` when served behind the same host in production.
 
 Production / Image-only
 
@@ -53,6 +54,11 @@ This split is intentional:
 
 1. `docker compose up --build` uses the override for frontend development.
 2. `docker compose -f docker-compose.yml up --build` runs image-only backend and frontend services.
+
+If your backend is hosted on a different URL, set `VITE_API_BASE_URL` before starting Compose. Example values:
+
+- `http://192.168.1.50:5000/api`
+- `https://example.com/api`
 
 Features:
 - Create People (owners/customers)

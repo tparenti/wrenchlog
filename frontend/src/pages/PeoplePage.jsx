@@ -1,8 +1,7 @@
 import React, {useEffect, useState} from 'react'
 import axios from 'axios'
 import { Link } from 'react-router-dom'
-
-const API = (path) => `http://localhost:5000/api${path}`
+import { apiUrl } from '../api'
 
 export default function PeoplePage(){
   const [people, setPeople] = useState([])
@@ -10,13 +9,13 @@ export default function PeoplePage(){
 
   useEffect(()=>{fetchPeople()}, [])
   async function fetchPeople(){
-    const res = await axios.get(API('/people'))
+    const res = await axios.get(apiUrl('/people'))
     setPeople(res.data)
   }
   async function add(e){
     e.preventDefault()
     if(!name) return
-    await axios.post(API('/people'), {name})
+    await axios.post(apiUrl('/people'), {name})
     setName('')
     fetchPeople()
   }

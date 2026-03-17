@@ -1,8 +1,7 @@
 import React, {useEffect, useState} from 'react'
 import axios from 'axios'
 import { Link } from 'react-router-dom'
-
-const API = (path) => `http://localhost:5000/api${path}`
+import { apiUrl } from '../api'
 
 export default function EquipmentPage(){
   const [equipment, setEquipment] = useState([])
@@ -11,13 +10,13 @@ export default function EquipmentPage(){
 
   useEffect(()=>{fetch();}, [])
   async function fetch(){
-    const [er, pr] = await Promise.all([axios.get(API('/equipment')), axios.get(API('/people'))])
+    const [er, pr] = await Promise.all([axios.get(apiUrl('/equipment')), axios.get(apiUrl('/people'))])
     setEquipment(er.data)
     setPeople(pr.data)
   }
   async function add(e){
     e.preventDefault()
-    await axios.post(API('/equipment'), form)
+    await axios.post(apiUrl('/equipment'), form)
     setForm({name:'', serial:'', owner_id:''})
     fetch()
   }

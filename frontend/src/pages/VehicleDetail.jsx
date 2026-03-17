@@ -1,8 +1,7 @@
 import React, {useEffect, useState} from 'react'
 import axios from 'axios'
 import { Link, useParams } from 'react-router-dom'
-
-const API = (path) => `http://localhost:5000/api${path}`
+import { apiUrl } from '../api'
 
 export default function VehicleDetail(){
   const { id } = useParams()
@@ -17,27 +16,27 @@ export default function VehicleDetail(){
 
   useEffect(()=>{fetch()}, [id])
   async function fetch(){
-    const [vr, mr] = await Promise.all([axios.get(API('/vehicles')), axios.get(API(`/vehicle/${id}/maintenance`))])
+    const [vr, mr] = await Promise.all([axios.get(apiUrl('/vehicles')), axios.get(apiUrl(`/vehicle/${id}/maintenance`))])
     setVehicle(vr.data.find(v=>v.id===Number(id)))
     setEntries(mr.data)
-    const pr = await axios.get(API('/people'))
+    const pr = await axios.get(apiUrl('/people'))
     setPeople(pr.data)
   }
   async function add(e){
     e.preventDefault()
-    await axios.post(API(`/vehicle/${id}/maintenance`), form)
+    await axios.post(apiUrl(`/vehicle/${id}/maintenance`), form)
     setForm({title:'', notes:''})
     fetch()
   }
   async function saveVehicle(e){
     e.preventDefault()
-    await axios.put(API(`/vehicles/${id}`), vehicleForm)
+    await axios.put(apiUrl(`/vehicles/${id}`), vehicleForm)
     setEditingVehicle(false)
     fetch()
   }
   async function deleteVehicle(){
     if(!confirm('Delete vehicle and its maintenance entries?')) return
-    await axios.delete(API(`/vehicles/${id}`))
+    await axios.delete(apiUrl(`/vehicles/${id}`))
     window.location = '/vehicles'
   }
 
@@ -48,13 +47,13 @@ export default function VehicleDetail(){
 
   async function deleteEntry(entryId){
     if(!confirm('Delete maintenance entry?')) return
-    await axios.delete(API(`/maintenance/${entryId}`))
+    await axios.delete(apiUrl(`/maintenance/${entryId}`))
     fetch()
   }
   async function saveEditingEntry(e){
     e.preventDefault()
     if(!editingEntryId) return
-    await axios.put(API(`/maintenance/${editingEntryId}`), editingEntryForm)
+    await axios.put(apiUrl(`/maintenance/${editingEntryId}`), editingEntryForm)
     setEditingEntryId(null)
     setEditingEntryForm({title:'', notes:''})
     fetch()

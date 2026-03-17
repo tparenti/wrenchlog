@@ -1,8 +1,7 @@
 import React, {useEffect, useState} from 'react'
 import axios from 'axios'
 import { useParams, Link } from 'react-router-dom'
-
-const API = (path) => `http://localhost:5000/api${path}`
+import { apiUrl } from '../api'
 
 export default function PersonDetail(){
   const { id } = useParams()
@@ -12,29 +11,29 @@ export default function PersonDetail(){
 
   useEffect(()=>{fetch()}, [id])
   async function fetch(){
-    const res = await axios.get(API(`/people/${id}`))
+    const res = await axios.get(apiUrl(`/people/${id}`))
     setPerson(res.data)
     setForm({name: res.data.name || '', phone: res.data.phone || ''})
   }
   async function save(e){
     e.preventDefault()
-    await axios.put(API(`/people/${id}`), form)
+    await axios.put(apiUrl(`/people/${id}`), form)
     setEditing(false)
     fetch()
   }
   async function removePerson(){
     if(!confirm('Delete person and their assets?')) return
-    await axios.delete(API(`/people/${id}`))
+    await axios.delete(apiUrl(`/people/${id}`))
     window.location = '/people'
   }
   async function deleteVehicle(vid){
     if(!confirm('Delete vehicle?')) return
-    await axios.delete(API(`/vehicles/${vid}`))
+    await axios.delete(apiUrl(`/vehicles/${vid}`))
     fetch()
   }
   async function deleteEquipment(eid){
     if(!confirm('Delete equipment?')) return
-    await axios.delete(API(`/equipment/${eid}`))
+    await axios.delete(apiUrl(`/equipment/${eid}`))
     fetch()
   }
 

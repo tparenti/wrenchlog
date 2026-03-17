@@ -1,8 +1,7 @@
 import React, {useEffect, useState} from 'react'
 import axios from 'axios'
 import { Link, useParams } from 'react-router-dom'
-
-const API = (path) => `http://localhost:5000/api${path}`
+import { apiUrl } from '../api'
 
 export default function EquipmentDetail(){
   const { id } = useParams()
@@ -12,13 +11,13 @@ export default function EquipmentDetail(){
 
   useEffect(()=>{fetch()}, [id])
   async function fetch(){
-    const [er, mr] = await Promise.all([axios.get(API('/equipment')), axios.get(API(`/equipment/${id}/maintenance`))])
+    const [er, mr] = await Promise.all([axios.get(apiUrl('/equipment')), axios.get(apiUrl(`/equipment/${id}/maintenance`))])
     setEquipment(er.data.find(e=>e.id===Number(id)))
     setEntries(mr.data)
   }
   async function add(e){
     e.preventDefault()
-    await axios.post(API(`/equipment/${id}/maintenance`), form)
+    await axios.post(apiUrl(`/equipment/${id}/maintenance`), form)
     setForm({title:'', notes:''})
     fetch()
   }
@@ -28,18 +27,18 @@ export default function EquipmentDetail(){
   const [editingEntryId, setEditingEntryId] = useState(null)
   const [editingEntryForm, setEditingEntryForm] = useState({title:'', notes:''})
 
-  useEffect(()=>{axios.get(API('/people')).then(r=>setPeople(r.data))}, [])
+  useEffect(()=>{axios.get(apiUrl('/people')).then(r=>setPeople(r.data))}, [])
 
   async function saveEquipment(e){
     e.preventDefault()
-    await axios.put(API(`/equipment/${id}`), equipmentForm)
+    await axios.put(apiUrl(`/equipment/${id}`), equipmentForm)
     setEditingEquipment(false)
     fetch()
   }
 
   async function deleteEquipment(){
     if(!confirm('Delete equipment and its maintenance entries?')) return
-    await axios.delete(API(`/equipment/${id}`))
+    await axios.delete(apiUrl(`/equipment/${id}`))
     window.location = '/equipment'
   }
 
@@ -50,14 +49,14 @@ export default function EquipmentDetail(){
 
   async function deleteEntry(entryId){
     if(!confirm('Delete maintenance entry?')) return
-    await axios.delete(API(`/maintenance/${entryId}`))
+    await axios.delete(apiUrl(`/maintenance/${entryId}`))
     fetch()
   }
 
   async function saveEditingEntry(e){
     e.preventDefault()
     if(!editingEntryId) return
-    await axios.put(API(`/maintenance/${editingEntryId}`), editingEntryForm)
+    await axios.put(apiUrl(`/maintenance/${editingEntryId}`), editingEntryForm)
     setEditingEntryId(null)
     setEditingEntryForm({title:'', notes:''})
     fetch()
