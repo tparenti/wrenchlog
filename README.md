@@ -23,6 +23,7 @@ WrenchLog is a Dockerized maintenance tracker for people, vehicles, and equipmen
 - Assign vehicles and equipment to people
 - Add, edit, and delete maintenance entries
 - Upload and manage project photos
+- Browse read-only RockAuto part categories and listings from vehicle records
 - View person detail pages with related vehicles and equipment
 - Responsive React UI with light and dark themes
 
@@ -124,6 +125,12 @@ Development-only override:
 - Project photos are uploaded through the project detail page.
 - Supported image types: `png`, `jpg`, `jpeg`, `gif`, `webp`, `bmp`
 - Maximum upload size per request: `16 MB`
+
+## RockAuto Lookup
+
+- Vehicle detail pages include a read-only RockAuto lookup section.
+- The lookup uses the stored vehicle make, year, and model to load engine choices, part categories, and live part listings.
+- This first pass does not use RockAuto login or saved-account features.
 
 ## Notes
 

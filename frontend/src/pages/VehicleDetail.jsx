@@ -15,6 +15,12 @@ export default function VehicleDetail(){
   const [people, setPeople] = useState([])
   const [editingEntryId, setEditingEntryId] = useState(null)
   const [editingEntryForm, setEditingEntryForm] = useState({title:'', notes:'', mileage_snapshot:''})
+  const [rockautoEngines, setRockautoEngines] = useState([])
+  const [rockautoCategories, setRockautoCategories] = useState([])
+  const [rockautoParts, setRockautoParts] = useState([])
+  const [rockautoForm, setRockautoForm] = useState({ engine_index: '', category: '' })
+  const [rockautoMeta, setRockautoMeta] = useState({ selected_engine: null, category: '', count: 0 })
+  const [rockautoStatus, setRockautoStatus] = useState({ loading: false, error: '' })
 
   useEffect(()=>{fetch()}, [id])
   async function fetch(){
@@ -73,8 +79,59 @@ export default function VehicleDetail(){
     const response = await axios.post(apiUrl(`/vehicle/${id}/projects`), {})
     navigate(`/projects/${response.data.id}`)
   }
+  async function loadRockautoEngines(){
+    setRockautoStatus({ loading: true, error: '' })
+    try {
+      const response = await axios.get(apiUrl(`/vehicles/${id}/rockauto/engines`))
+      const engines = response.data.engines || []
+      setRockautoEngines(engines)
+      setRockautoCategories([])
+      setRockautoParts([])
+      setRockautoMeta({ selected_engine: null, category: '', count: 0 })
+      if (engines.length) {
+        const nextEngineIndex = String(engines[0].index)
+        setRockautoForm({ engine_index: nextEngineIndex, category: '' })
+        await loadRockautoCategories(nextEngineIndex)
+      } else {
+        setRockautoForm({ engine_index: '', category: '' })
+      }
+    } catch (error) {
+      setRockautoStatus({ loading: false, error: error.response?.data?.error || 'RockAuto lookup failed.' })
+    }
+  }
+  async function loadRockautoCategories(engineIndex){
+    if (engineIndex === '' || engineIndex == null) return
+    setRockautoStatus({ loading: true, error: '' })
+    try {
+      const response = await axios.get(apiUrl(`/vehicles/${id}/rockauto/categories`), { params: { engine_index: engineIndex } })
+      const categories = response.data.categories || []
+      setRockautoCategories(categories)
+      setRockautoParts([])
+      setRockautoMeta({ selected_engine: response.data.selected_engine, category: '', count: 0 })
+      setRockautoForm(current => ({ ...current, engine_index: String(engineIndex), category: categories[0]?.name || '' }))
+      setRockautoStatus({ loading: false, error: '' })
+    } catch (error) {
+      setRockautoStatus({ loading: false, error: error.response?.data?.error || 'Unable to load RockAuto categories.' })
+    }
+  }
+  async function loadRockautoParts(e){
+    if (e) e.preventDefault()
+    if (rockautoForm.engine_index === '' || !rockautoForm.category) return
+    setRockautoStatus({ loading: true, error: '' })
+    try {
+      const response = await axios.get(apiUrl(`/vehicles/${id}/rockauto/parts`), {
+        params: { engine_index: rockautoForm.engine_index, category: rockautoForm.category }
+      })
+      setRockautoParts(response.data.parts || [])
+      setRockautoMeta({ selected_engine: response.data.selected_engine, category: response.data.category, count: response.data.count || 0 })
+      setRockautoStatus({ loading: false, error: '' })
+    } catch (error) {
+      setRockautoStatus({ loading: false, error: error.response?.data?.error || 'Unable to load RockAuto parts.' })
+    }
+  }
   if(!vehicle) return <div>Loading...</div>
   const owner = people.find(p => p.id === vehicle.owner_id)
+  const canUseRockauto = Boolean(vehicle.make && vehicle.model && vehicle.year)
 
   return (
     <div className="stack">
@@ -115,6 +172,88 @@ export default function VehicleDetail(){
           <button className="button button-danger" onClick={deleteVehicle}>Delete vehicle</button>
         </div>
       )}
+      </section>
+
+      <section className="panel">
+        <div className="section-head">
+          <div>
+            <h3 className="section-title">RockAuto lookup</h3>
+            <p className="muted">Browse live part categories and listings for this vehicle without leaving the record.</p>
+          </div>
+          <div className="action-row">
+            <button className="button button-secondary" onClick={loadRockautoEngines} disabled={!canUseRockauto || rockautoStatus.loading}>
+              {rockautoStatus.loading ? 'Loading…' : 'Load RockAuto data'}
+            </button>
+          </div>
+        </div>
+        {!canUseRockauto ? (
+          <div className="empty-state">
+            <p className="muted">Add the vehicle make, model, and year before using RockAuto lookup.</p>
+          </div>
+        ) : (
+          <>
+            {rockautoStatus.error ? <div className="empty-state"><p className="muted">{rockautoStatus.error}</p></div> : null}
+            <form onSubmit={loadRockautoParts} className="form-grid compact">
+              <select
+                className="select"
+                value={rockautoForm.engine_index}
+                onChange={async e => {
+                  const nextEngineIndex = e.target.value
+                  setRockautoForm(current => ({ ...current, engine_index: nextEngineIndex, category: '' }))
+                  await loadRockautoCategories(nextEngineIndex)
+                }}
+                disabled={!rockautoEngines.length || rockautoStatus.loading}
+              >
+                <option value="">Select engine</option>
+                {rockautoEngines.map(engine => <option key={engine.index} value={engine.index}>{engine.description}</option>)}
+              </select>
+              <select
+                className="select"
+                value={rockautoForm.category}
+                onChange={e => setRockautoForm(current => ({ ...current, category: e.target.value }))}
+                disabled={!rockautoCategories.length || rockautoStatus.loading}
+              >
+                <option value="">Select category</option>
+                {rockautoCategories.map(category => <option key={category.name} value={category.name}>{category.name}</option>)}
+              </select>
+              <div className="action-row">
+                <button className="button button-primary" disabled={!rockautoForm.engine_index || !rockautoForm.category || rockautoStatus.loading}>Search category</button>
+              </div>
+            </form>
+            {rockautoMeta.selected_engine ? (
+              <div className="meta-row">
+                <span className="badge accent-badge">Engine: {rockautoMeta.selected_engine.description}</span>
+                {rockautoMeta.category ? <span className="badge">Category: {rockautoMeta.category}</span> : null}
+                {rockautoMeta.count ? <span className="badge">Results: {rockautoMeta.count}</span> : null}
+              </div>
+            ) : null}
+            {rockautoParts.length ? (
+              <div className="entry-list">
+                {rockautoParts.map((part, index) => (
+                  <article key={`${part.part_number || 'part'}-${index}`} className="entry-card">
+                    <div className="record-header">
+                      <div>
+                        <h4 className="entry-title">{part.name || 'Unnamed part'}</h4>
+                        <p className="record-meta">{part.brand || 'Unknown brand'}{part.part_number ? ` • ${part.part_number}` : ''}</p>
+                      </div>
+                      {part.price ? <span className="badge accent-badge">{part.price}</span> : <span className="badge">Price unavailable</span>}
+                    </div>
+                    <div className="meta-row">
+                      {part.availability ? <span className="badge">{part.availability}</span> : null}
+                    </div>
+                    <div className="action-row">
+                      {part.url ? <a className="button button-secondary" href={part.url} target="_blank" rel="noreferrer">Open on RockAuto</a> : null}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : rockautoMeta.category && !rockautoStatus.loading ? (
+              <div className="empty-state">
+                <p className="muted">No parts returned for that category.</p>
+              </div>
+            ) : null}
+          </>
+        )}
       </section>
 
       <section className="panel">
