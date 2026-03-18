@@ -1,17 +1,24 @@
 from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
-from models import db, Person, Vehicle, Equipment, Maintenance, Project, ProjectPart, ProjectTask
+from models import db, Person, Vehicle, Equipment, Maintenance, Project, ProjectPart, ProjectPhoto, ProjectTask
 import os
 from sqlalchemy import text
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from uuid import uuid4
+from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.utils import secure_filename
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 frontend_dist = os.path.join(basedir, 'frontend_dist')
+uploads_root = os.path.join(basedir, 'uploads')
+project_uploads_root = os.path.join(uploads_root, 'projects')
+allowed_image_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'}
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'wrenchlog.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 db.init_app(app)
 CORS(app)
 
@@ -26,6 +33,71 @@ def parse_optional_float(value):
     if value in (None, ''):
         return None
     return float(value)
+
+
+def ensure_upload_directories():
+    os.makedirs(project_uploads_root, exist_ok=True)
+
+
+def project_upload_directory(project_id):
+    directory = os.path.join(project_uploads_root, str(project_id))
+    os.makedirs(directory, exist_ok=True)
+    return directory
+
+
+def is_allowed_image(file_storage):
+    if file_storage is None or not file_storage.filename:
+        return False
+    extension = os.path.splitext(file_storage.filename)[1].lower().lstrip('.')
+    if extension not in allowed_image_extensions:
+        return False
+    content_type = file_storage.mimetype or ''
+    return content_type.startswith('image/')
+
+
+def save_project_photo(project, file_storage):
+    if not is_allowed_image(file_storage):
+        return None
+
+    original_filename = secure_filename(file_storage.filename)
+    extension = os.path.splitext(original_filename)[1].lower()
+    stored_filename = f'{uuid4().hex}{extension}'
+    destination = os.path.join(project_upload_directory(project.id), stored_filename)
+    file_storage.save(destination)
+
+    photo = ProjectPhoto(
+        original_filename=original_filename,
+        stored_filename=stored_filename,
+        content_type=file_storage.mimetype,
+        project_id=project.id,
+    )
+    db.session.add(photo)
+    return photo
+
+
+def delete_project_photo_file(photo):
+    photo_directory = os.path.join(project_uploads_root, str(photo.project_id))
+    photo_path = os.path.join(photo_directory, photo.stored_filename)
+    if os.path.isfile(photo_path):
+        os.remove(photo_path)
+    if os.path.isdir(photo_directory) and not os.listdir(photo_directory):
+        os.rmdir(photo_directory)
+
+
+def delete_project_assets(project):
+    for photo in list(project.photos):
+        delete_project_photo_file(photo)
+
+
+def project_photo_to_dict(photo):
+    return {
+        "id": photo.id,
+        "original_filename": photo.original_filename,
+        "content_type": photo.content_type,
+        "created_at": photo.created_at.isoformat() if photo.created_at else None,
+        "file_url": f'/api/project-photos/{photo.id}/file',
+        "project_id": photo.project_id,
+    }
 
 
 def ensure_vehicle_mileage_column():
@@ -86,9 +158,15 @@ def proxy_dev_frontend_request(path):
     return response
 
 with app.app_context():
+    ensure_upload_directories()
     db.create_all()
     ensure_vehicle_mileage_column()
     ensure_maintenance_mileage_snapshot_column()
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_request_entity_too_large(_error):
+    return jsonify({'error': 'Image upload exceeds the 16 MB limit.'}), 413
 
 # --- API endpoints for React frontend ---
 def person_to_dict(p):
@@ -116,6 +194,7 @@ def project_to_dict(project):
         "task_count": len(project.tasks),
         "completed_task_count": sum(1 for task in project.tasks if task.is_done),
         "part_count": len(project.parts),
+        "photo_count": len(project.photos),
         "estimated_total": estimated_total,
         "actual_total": actual_total,
         "created_at": project.created_at.isoformat() if project.created_at else None,
@@ -190,6 +269,8 @@ def api_person_detail(person_id):
     # cascade delete maintenance? leave FK null or delete related assets first
     # For simplicity, delete person's vehicles and equipment and their maintenance
     for v in list(p.vehicles):
+        for project in list(v.projects):
+            delete_project_assets(project)
         Maintenance.query.filter_by(vehicle_id=v.id).delete()
         db.session.delete(v)
     for e in list(p.equipment):
@@ -235,6 +316,8 @@ def api_vehicle_detail(vehicle_id):
         db.session.commit()
         return jsonify(vehicle_to_dict(v))
     # DELETE
+    for project in list(v.projects):
+        delete_project_assets(project)
     Maintenance.query.filter_by(vehicle_id=v.id).delete()
     db.session.delete(v)
     db.session.commit()
@@ -268,6 +351,7 @@ def api_project_detail(project_id):
         data['vehicle'] = vehicle_to_dict(project.vehicle)
         data['tasks'] = [project_task_to_dict(task) for task in sorted(project.tasks, key=lambda item: item.created_at or project.created_at)]
         data['parts'] = [project_part_to_dict(part) for part in sorted(project.parts, key=lambda item: item.created_at or project.created_at)]
+        data['photos'] = [project_photo_to_dict(photo) for photo in sorted(project.photos, key=lambda item: item.created_at or project.created_at, reverse=True)]
         return jsonify(data)
     if request.method == 'PUT':
         data = request.get_json() or {}
@@ -277,7 +361,50 @@ def api_project_detail(project_id):
         project.notes = data.get('notes', project.notes)
         db.session.commit()
         return jsonify(project_to_dict(project))
+    delete_project_assets(project)
     db.session.delete(project)
+    db.session.commit()
+    return jsonify({'status': 'deleted'})
+
+
+@app.route('/api/projects/<int:project_id>/photos', methods=['GET', 'POST'])
+def api_project_photos(project_id):
+    project = Project.query.get_or_404(project_id)
+    if request.method == 'POST':
+        files = request.files.getlist('photos') or request.files.getlist('photo')
+        if not files:
+            return jsonify({'error': 'at least one image file is required'}), 400
+
+        if any(not is_allowed_image(file_storage) for file_storage in files):
+            return jsonify({'error': 'only image uploads are supported'}), 400
+
+        created_photos = []
+        for file_storage in files:
+            photo = save_project_photo(project, file_storage)
+            if photo is not None:
+                created_photos.append(photo)
+
+        if not created_photos:
+            return jsonify({'error': 'no valid images were uploaded'}), 400
+
+        db.session.commit()
+        return jsonify([project_photo_to_dict(photo) for photo in created_photos]), 201
+
+    photos = ProjectPhoto.query.filter_by(project_id=project.id).order_by(ProjectPhoto.created_at.desc()).all()
+    return jsonify([project_photo_to_dict(photo) for photo in photos])
+
+
+@app.route('/api/project-photos/<int:photo_id>/file', methods=['GET'])
+def api_project_photo_file(photo_id):
+    photo = ProjectPhoto.query.get_or_404(photo_id)
+    return send_from_directory(project_upload_directory(photo.project_id), photo.stored_filename)
+
+
+@app.route('/api/project-photos/<int:photo_id>', methods=['DELETE'])
+def api_project_photo_detail(photo_id):
+    photo = ProjectPhoto.query.get_or_404(photo_id)
+    delete_project_photo_file(photo)
+    db.session.delete(photo)
     db.session.commit()
     return jsonify({'status': 'deleted'})
 

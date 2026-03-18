@@ -48,6 +48,7 @@ class Project(db.Model):
     vehicle_id = db.Column(db.Integer, db.ForeignKey('vehicle.id'), nullable=False)
     tasks = db.relationship('ProjectTask', backref='project', lazy=True, cascade='all, delete-orphan')
     parts = db.relationship('ProjectPart', backref='project', lazy=True, cascade='all, delete-orphan')
+    photos = db.relationship('ProjectPhoto', backref='project', lazy=True, cascade='all, delete-orphan')
 
 class ProjectTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -67,5 +68,13 @@ class ProjectPart(db.Model):
     actual_cost = db.Column(db.Float)
     status = db.Column(db.String(50), default='planned')
     notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+
+class ProjectPhoto(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    original_filename = db.Column(db.String(255), nullable=False)
+    stored_filename = db.Column(db.String(255), nullable=False)
+    content_type = db.Column(db.String(120))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)

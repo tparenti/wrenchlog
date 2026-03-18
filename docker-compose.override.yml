@@ -2,6 +2,7 @@ services:
   wrenchlog:
     volumes:
       - .:/app
+      - ./uploads:/app/uploads
     environment:
       - FLASK_ENV=development
       - DEV_FRONTEND_ORIGIN=http://frontend:5173
