@@ -1,3 +1,4 @@
+import asyncio
 from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
 from models import db, Person, Vehicle, Equipment, Maintenance, Project, ProjectPart, ProjectPhoto, ProjectTask
@@ -8,6 +9,11 @@ from urllib.request import Request, urlopen
 from uuid import uuid4
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
+
+try:
+    from rockauto_api import RockAutoClient
+except ImportError:
+    RockAutoClient = None
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 frontend_dist = os.path.join(basedir, 'frontend_dist')
@@ -33,6 +39,72 @@ def parse_optional_float(value):
     if value in (None, ''):
         return None
     return float(value)
+
+
+def require_rockauto_client():
+    if RockAutoClient is None:
+        raise RuntimeError('RockAuto integration is not installed on the backend.')
+
+
+def require_vehicle_lookup_fields(vehicle):
+    if not vehicle.make or not vehicle.model or not vehicle.year:
+        raise ValueError('Vehicle must have make, model, and year before using RockAuto lookup.')
+    return vehicle.make, int(vehicle.year), vehicle.model
+
+
+def run_async(coroutine):
+    return asyncio.run(coroutine)
+
+
+def normalize_rockauto_engine(engine, index):
+    return {
+        'index': index,
+        'description': engine.description,
+        'carcode': engine.carcode,
+        'href': engine.href,
+    }
+
+
+def normalize_rockauto_category(category):
+    return {
+        'name': category.name,
+        'group_name': category.group_name,
+        'href': category.href,
+    }
+
+
+def normalize_rockauto_part(part):
+    return {
+        'name': part.name,
+        'part_number': part.part_number,
+        'price': part.price,
+        'brand': part.brand,
+        'availability': part.availability,
+        'url': part.url,
+        'image_url': part.image_url,
+        'info_url': part.info_url,
+        'video_url': part.video_url,
+    }
+
+
+async def fetch_rockauto_engines(make, year, model):
+    async with RockAutoClient() as client:
+        engines = await client.get_engines_for_vehicle(make, year, model)
+        return engines
+
+
+async def fetch_rockauto_categories(make, year, model, engine_index):
+    async with RockAutoClient() as client:
+        vehicle = await client.get_vehicle(make, year, model, engine_index=engine_index)
+        categories = await vehicle.get_part_categories()
+        return vehicle, categories
+
+
+async def fetch_rockauto_parts(make, year, model, engine_index, category_name):
+    async with RockAutoClient() as client:
+        vehicle = await client.get_vehicle(make, year, model, engine_index=engine_index)
+        parts = await vehicle.get_parts_by_category(category_name)
+        return vehicle, parts
 
 
 def ensure_upload_directories():
@@ -235,6 +307,16 @@ def project_part_to_dict(part):
     }
 
 
+def rockauto_error_response(error):
+    message = str(error)
+    status = 502
+    if isinstance(error, ValueError):
+        status = 400
+    elif 'not installed' in message.lower():
+        status = 503
+    return jsonify({'error': message}), status
+
+
 @app.route('/api/people', methods=['GET','POST'])
 def api_people():
     if request.method == 'POST':
@@ -322,6 +404,72 @@ def api_vehicle_detail(vehicle_id):
     db.session.delete(v)
     db.session.commit()
     return jsonify({'status': 'deleted'})
+
+
+@app.route('/api/vehicles/<int:vehicle_id>/rockauto/engines', methods=['GET'])
+def api_vehicle_rockauto_engines(vehicle_id):
+    vehicle = Vehicle.query.get_or_404(vehicle_id)
+    try:
+        require_rockauto_client()
+        make, year, model = require_vehicle_lookup_fields(vehicle)
+        engines = run_async(fetch_rockauto_engines(make, year, model))
+        return jsonify({
+            'make': engines.make,
+            'year': engines.year,
+            'model': engines.model,
+            'count': engines.count,
+            'engines': [normalize_rockauto_engine(engine, index) for index, engine in enumerate(engines.engines)],
+        })
+    except Exception as error:
+        return rockauto_error_response(error)
+
+
+@app.route('/api/vehicles/<int:vehicle_id>/rockauto/categories', methods=['GET'])
+def api_vehicle_rockauto_categories(vehicle_id):
+    vehicle = Vehicle.query.get_or_404(vehicle_id)
+    try:
+        require_rockauto_client()
+        make, year, model = require_vehicle_lookup_fields(vehicle)
+        engine_index = parse_optional_int(request.args.get('engine_index'))
+        if engine_index is None or engine_index < 0:
+            raise ValueError('engine_index is required and must be 0 or greater.')
+        selected_vehicle, categories = run_async(fetch_rockauto_categories(make, year, model, engine_index))
+        return jsonify({
+            'make': selected_vehicle.make,
+            'year': selected_vehicle.year,
+            'model': selected_vehicle.model,
+            'selected_engine': normalize_rockauto_engine(selected_vehicle.engine, engine_index),
+            'count': categories.count,
+            'categories': [normalize_rockauto_category(category) for category in categories.categories if category.name != 'Show Closeouts Only'],
+        })
+    except Exception as error:
+        return rockauto_error_response(error)
+
+
+@app.route('/api/vehicles/<int:vehicle_id>/rockauto/parts', methods=['GET'])
+def api_vehicle_rockauto_parts(vehicle_id):
+    vehicle = Vehicle.query.get_or_404(vehicle_id)
+    try:
+        require_rockauto_client()
+        make, year, model = require_vehicle_lookup_fields(vehicle)
+        engine_index = parse_optional_int(request.args.get('engine_index'))
+        category_name = request.args.get('category')
+        if engine_index is None or engine_index < 0:
+            raise ValueError('engine_index is required and must be 0 or greater.')
+        if not category_name:
+            raise ValueError('category is required.')
+        selected_vehicle, parts = run_async(fetch_rockauto_parts(make, year, model, engine_index, category_name))
+        return jsonify({
+            'make': selected_vehicle.make,
+            'year': selected_vehicle.year,
+            'model': selected_vehicle.model,
+            'selected_engine': normalize_rockauto_engine(selected_vehicle.engine, engine_index),
+            'category': category_name,
+            'count': parts.count,
+            'parts': [normalize_rockauto_part(part) for part in parts.parts],
+        })
+    except Exception as error:
+        return rockauto_error_response(error)
 
 
 @app.route('/api/vehicle/<int:vehicle_id>/projects', methods=['GET', 'POST'])
