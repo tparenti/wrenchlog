@@ -11,9 +11,9 @@ WrenchLog is a Dockerized maintenance tracker for people, vehicles, and equipmen
 ## Current Behavior
 
 - In production-style runs, the React app and the API are served from the same host on port `5000`.
-- In development, Flask runs on `5000` and the Vite dev server runs on `5173` with hot reload.
+- In development, the full app is still accessed on port `5000`; Flask proxies frontend requests to an internal Vite dev server.
 - The frontend uses `/api` automatically in same-host deployments.
-- During Vite development, the frontend falls back to the current hostname on port `5000` unless `VITE_API_BASE_URL` is set.
+- During Vite development, the frontend service stays internal to Docker and is not exposed as a public port.
 
 ## Features
 
@@ -34,13 +34,12 @@ WrenchLog is a Dockerized maintenance tracker for people, vehicles, and equipmen
 What this does:
 
 - Starts the Flask backend with the project mounted into the container
-- Starts the Vite frontend dev server with hot reload
+- Starts the Vite frontend dev server internally for frontend asset serving
 - Uses `docker-compose.override.yml` automatically
 
 URLs:
 
-- Frontend: `http://localhost:5173`
-- Backend/API: `http://localhost:5000`
+- App and API: `http://localhost:5000`
 
 Useful development commands:
 
@@ -75,7 +74,7 @@ The frontend supports an override via `VITE_API_BASE_URL`.
 
 Use this when:
 
-- The frontend dev server needs to call a backend on another host
+- The internal frontend dev server needs to call a backend on another host
 - You are testing against a remote API
 
 Examples:
@@ -113,8 +112,9 @@ Development-only override:
 
 - Mounts backend source into the Flask container
 - Builds the frontend with the `dev` target
-- Mounts frontend source into the Vite container
+- Mounts frontend source into the internal Vite container
 - Preserves container `node_modules` with an anonymous volume
+- Keeps the entire application accessible on a single external port: `5000`
 
 ## Notes
 

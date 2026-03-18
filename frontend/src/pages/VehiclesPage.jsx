@@ -6,7 +6,7 @@ import { apiUrl } from '../api'
 export default function VehiclesPage(){
   const [vehicles, setVehicles] = useState([])
   const [people, setPeople] = useState([])
-  const [form, setForm] = useState({year:'', make:'', model:'', owner_id:''})
+  const [form, setForm] = useState({year:'', make:'', model:'', mileage:'', owner_id:''})
   const [ownerFilter, setOwnerFilter] = useState('all')
 
   useEffect(()=>{fetch();}, [])
@@ -18,7 +18,7 @@ export default function VehiclesPage(){
   async function add(e){
     e.preventDefault()
     await axios.post(apiUrl('/vehicles'), form)
-    setForm({year:'', make:'', model:'', owner_id:''})
+    setForm({year:'', make:'', model:'', mileage:'', owner_id:''})
     fetch()
   }
 
@@ -50,6 +50,7 @@ export default function VehiclesPage(){
           <input className="input" placeholder="Year" value={form.year} onChange={e=>setForm({...form, year:e.target.value})} />
           <input className="input" placeholder="Make" value={form.make} onChange={e=>setForm({...form, make:e.target.value})} />
           <input className="input" placeholder="Model" value={form.model} onChange={e=>setForm({...form, model:e.target.value})} />
+          <input className="input" placeholder="Mileage" value={form.mileage} onChange={e=>setForm({...form, mileage:e.target.value})} />
           <select className="select" value={form.owner_id} onChange={e=>setForm({...form, owner_id: e.target.value || ''})}>
           <option value="">No owner</option>
           {people.map(p=> <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -105,6 +106,9 @@ export default function VehiclesPage(){
                     <p className="record-meta">{owner ? `Owner: ${owner.name}` : 'No owner assigned'}</p>
                   </div>
                   <span className="badge">Vehicle #{v.id}</span>
+                </div>
+                <div className="meta-row">
+                  {v.mileage != null && v.mileage !== '' ? <span className="badge accent-badge">Mileage: {Number(v.mileage).toLocaleString()}</span> : null}
                 </div>
                 <div className="action-row">
                   <Link to={`/vehicles/${v.id}`} className="button button-secondary">Open record</Link>
