@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import PeoplePage from './pages/PeoplePage'
 import VehiclesPage from './pages/VehiclesPage'
 import VehicleDetail from './pages/VehicleDetail'
+import ProjectDetail from './pages/ProjectDetail'
 import EquipmentPage from './pages/EquipmentPage'
 import EquipmentDetail from './pages/EquipmentDetail'
 import PersonDetail from './pages/PersonDetail'
@@ -40,6 +41,7 @@ function App(){
             <Route path="/people/:id" element={<PersonDetail/>} />
             <Route path="/vehicles" element={<VehiclesPage/>} />
             <Route path="/vehicles/:id" element={<VehicleDetail/>} />
+            <Route path="/projects/:id" element={<ProjectDetail/>} />
             <Route path="/equipment" element={<EquipmentPage/>} />
             <Route path="/equipment/:id" element={<EquipmentDetail/>} />
           </Routes>

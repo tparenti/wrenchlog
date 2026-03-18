@@ -85,6 +85,7 @@ export default function PersonDetail(){
                   <div className="record-header">
                     <div>
                       <h4 className="entry-title"><Link className="link-accent" to={`/vehicles/${v.id}`}>{v.year} {v.make} {v.model}</Link></h4>
+                      {v.mileage != null && v.mileage !== '' ? <p className="record-meta">Mileage: {Number(v.mileage).toLocaleString()}</p> : null}
                     </div>
                   </div>
                   <div className="action-row">
