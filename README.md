@@ -22,6 +22,7 @@ WrenchLog is a Dockerized maintenance tracker for people, vehicles, and equipmen
 - Create and edit equipment
 - Assign vehicles and equipment to people
 - Add, edit, and delete maintenance entries
+- Upload and manage project photos
 - View person detail pages with related vehicles and equipment
 - Responsive React UI with light and dark themes
 
@@ -104,6 +105,7 @@ Base image-only deployment:
 
 - Runs the Flask app on port `5000`
 - Serves the built React frontend from the same container
+- Persists uploaded project photos in a named Docker volume mounted at `/app/uploads`
 - Intended for simple deployment and launch testing
 
 ### `docker-compose.override.yml`
@@ -113,8 +115,15 @@ Development-only override:
 - Mounts backend source into the Flask container
 - Builds the frontend with the `dev` target
 - Mounts frontend source into the internal Vite container
+- Mounts `./uploads` into the backend container so uploaded project photos persist locally during development
 - Preserves container `node_modules` with an anonymous volume
 - Keeps the entire application accessible on a single external port: `5000`
+
+## Project Photos
+
+- Project photos are uploaded through the project detail page.
+- Supported image types: `png`, `jpg`, `jpeg`, `gif`, `webp`, `bmp`
+- Maximum upload size per request: `16 MB`
 
 ## Notes
 

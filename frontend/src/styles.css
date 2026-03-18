@@ -390,6 +390,19 @@ button {
 	box-shadow: 0 0 0 4px var(--brand-soft);
 }
 
+.file-input {
+	width: 100%;
+	padding: 12px 14px;
+	border: 1px dashed var(--line-strong);
+	border-radius: 16px;
+	background: var(--surface-strong);
+	color: var(--text-soft);
+}
+
+.file-input:hover {
+	border-color: var(--brand);
+}
+
 .textarea {
 	min-height: 112px;
 	resize: vertical;
@@ -497,6 +510,31 @@ button {
 
 .entry-card {
 	background: linear-gradient(180deg, var(--surface-strong), var(--surface));
+}
+
+.photo-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 16px;
+}
+
+.photo-card {
+	display: grid;
+	gap: 12px;
+	padding: 14px;
+	border: 1px solid var(--line);
+	border-radius: 22px;
+	background: linear-gradient(180deg, var(--surface-strong), var(--surface));
+	box-shadow: var(--shadow);
+}
+
+.photo-image {
+	width: 100%;
+	aspect-ratio: 4 / 3;
+	object-fit: cover;
+	border-radius: 16px;
+	border: 1px solid var(--line);
+	background: var(--surface-muted);
 }
 
 .entry-title {

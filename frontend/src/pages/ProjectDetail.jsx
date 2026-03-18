@@ -15,6 +15,8 @@ export default function ProjectDetail(){
   const [partForm, setPartForm] = useState({ name: '', part_number: '', quantity: '1', estimated_cost: '', actual_cost: '', status: 'planned', notes: '' })
   const [editingPartId, setEditingPartId] = useState(null)
   const [editingPartForm, setEditingPartForm] = useState({ name: '', part_number: '', quantity: '1', estimated_cost: '', actual_cost: '', status: 'planned', notes: '' })
+  const [selectedPhotos, setSelectedPhotos] = useState([])
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false)
 
   useEffect(() => { fetchProject() }, [id])
 
@@ -87,6 +89,29 @@ export default function ProjectDetail(){
 
   async function deletePart(partId){
     await axios.delete(apiUrl(`/project-parts/${partId}`))
+    fetchProject()
+  }
+
+  async function uploadPhotos(e){
+    e.preventDefault()
+    if (!selectedPhotos.length) return
+
+    const formData = new FormData()
+    selectedPhotos.forEach(file => formData.append('photos', file))
+
+    setIsUploadingPhotos(true)
+    try {
+      await axios.post(apiUrl(`/projects/${id}/photos`), formData)
+      setSelectedPhotos([])
+      if (e.target?.reset) e.target.reset()
+      fetchProject()
+    } finally {
+      setIsUploadingPhotos(false)
+    }
+  }
+
+  async function deletePhoto(photoId){
+    await axios.delete(apiUrl(`/project-photos/${photoId}`))
     fetchProject()
   }
 
@@ -262,6 +287,56 @@ export default function ProjectDetail(){
             </div>
           )}
         </article>
+      </section>
+
+      <section className="panel">
+        <div className="section-head">
+          <div>
+            <h3 className="section-title">Project photos</h3>
+            <p className="muted">Upload reference photos, progress shots, and finished results for this job.</p>
+          </div>
+          <span className="badge">{project.photo_count || 0} photos</span>
+        </div>
+        <form onSubmit={uploadPhotos} className="form-grid">
+          <input
+            className="file-input"
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={e => setSelectedPhotos(Array.from(e.target.files || []))}
+          />
+          <div className="action-row">
+            <button className="button button-primary" disabled={isUploadingPhotos || !selectedPhotos.length}>
+              {isUploadingPhotos ? 'Uploading…' : 'Upload photos'}
+            </button>
+            {selectedPhotos.length ? <span className="badge">{selectedPhotos.length} selected</span> : null}
+          </div>
+        </form>
+        {project.photos?.length ? (
+          <div className="photo-grid">
+            {project.photos.map(photo => (
+              <article key={photo.id} className="photo-card">
+                <a href={photo.file_url} target="_blank" rel="noreferrer">
+                  <img className="photo-image" src={photo.file_url} alt={photo.original_filename} />
+                </a>
+                <div className="entry-stack">
+                  <div>
+                    <h4 className="entry-title">{photo.original_filename}</h4>
+                    <p className="record-meta">{photo.created_at ? new Date(photo.created_at).toLocaleString() : 'Uploaded now'}</p>
+                  </div>
+                  <div className="action-row">
+                    <a className="button button-secondary" href={photo.file_url} target="_blank" rel="noreferrer">Open</a>
+                    <button className="button button-danger" onClick={() => deletePhoto(photo.id)}>Delete</button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <p className="muted">No project photos yet.</p>
+          </div>
+        )}
       </section>
     </div>
   )
