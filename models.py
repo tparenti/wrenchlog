@@ -7,6 +7,7 @@ class Person(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     vehicles = db.relationship('Vehicle', backref='owner', lazy=True)
     equipment = db.relationship('Equipment', backref='owner', lazy=True)
 
@@ -17,6 +18,7 @@ class Vehicle(db.Model):
     model = db.Column(db.String(64))
     year = db.Column(db.String(10))
     mileage = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     owner_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=True)
     maintenance = db.relationship('Maintenance', backref='vehicle', lazy=True)
     projects = db.relationship('Project', backref='vehicle', lazy=True, cascade='all, delete-orphan')
@@ -25,6 +27,7 @@ class Equipment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     serial = db.Column(db.String(120))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     owner_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=True)
     maintenance = db.relationship('Maintenance', backref='equipment', lazy=True)
 

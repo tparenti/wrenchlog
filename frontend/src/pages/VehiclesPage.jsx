@@ -2,11 +2,12 @@ import React, {useEffect, useState} from 'react'
 import axios from 'axios'
 import { Link } from 'react-router-dom'
 import { apiUrl } from '../api'
+import { formatDisplayDate, todayDateInput } from '../date'
 
 export default function VehiclesPage(){
   const [vehicles, setVehicles] = useState([])
   const [people, setPeople] = useState([])
-  const [form, setForm] = useState({year:'', make:'', model:'', mileage:'', owner_id:''})
+  const [form, setForm] = useState({year:'', make:'', model:'', mileage:'', created_at: todayDateInput(), owner_id:''})
   const [ownerFilter, setOwnerFilter] = useState('all')
 
   useEffect(()=>{fetch();}, [])
@@ -18,7 +19,7 @@ export default function VehiclesPage(){
   async function add(e){
     e.preventDefault()
     await axios.post(apiUrl('/vehicles'), form)
-    setForm({year:'', make:'', model:'', mileage:'', owner_id:''})
+    setForm({year:'', make:'', model:'', mileage:'', created_at: todayDateInput(), owner_id:''})
     fetch()
   }
 
@@ -51,6 +52,7 @@ export default function VehiclesPage(){
           <input className="input" placeholder="Make" value={form.make} onChange={e=>setForm({...form, make:e.target.value})} />
           <input className="input" placeholder="Model" value={form.model} onChange={e=>setForm({...form, model:e.target.value})} />
           <input className="input" placeholder="Mileage" value={form.mileage} onChange={e=>setForm({...form, mileage:e.target.value})} />
+          <input className="input" type="date" value={form.created_at} onChange={e=>setForm({...form, created_at:e.target.value})} />
           <select className="select" value={form.owner_id} onChange={e=>setForm({...form, owner_id: e.target.value || ''})}>
           <option value="">No owner</option>
           {people.map(p=> <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -103,7 +105,7 @@ export default function VehiclesPage(){
                 <div className="record-header">
                   <div>
                     <h3 className="record-title"><Link to={`/vehicles/${v.id}`}>{v.year} {v.make} {v.model}</Link></h3>
-                    <p className="record-meta">{owner ? `Owner: ${owner.name}` : 'No owner assigned'}</p>
+                    <p className="record-meta">{owner ? `Owner: ${owner.name}` : 'No owner assigned'} • Created {formatDisplayDate(v.created_at)}</p>
                   </div>
                   <span className="badge">Vehicle #{v.id}</span>
                 </div>

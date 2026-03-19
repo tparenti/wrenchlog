@@ -2,11 +2,12 @@ import React, {useEffect, useState} from 'react'
 import axios from 'axios'
 import { Link } from 'react-router-dom'
 import { apiUrl } from '../api'
+import { formatDisplayDate, todayDateInput } from '../date'
 
 export default function EquipmentPage(){
   const [equipment, setEquipment] = useState([])
   const [people, setPeople] = useState([])
-  const [form, setForm] = useState({name:'', serial:'', owner_id:''})
+  const [form, setForm] = useState({name:'', serial:'', created_at: todayDateInput(), owner_id:''})
   const [ownerFilter, setOwnerFilter] = useState('all')
 
   useEffect(()=>{fetch();}, [])
@@ -18,7 +19,7 @@ export default function EquipmentPage(){
   async function add(e){
     e.preventDefault()
     await axios.post(apiUrl('/equipment'), form)
-    setForm({name:'', serial:'', owner_id:''})
+    setForm({name:'', serial:'', created_at: todayDateInput(), owner_id:''})
     fetch()
   }
 
@@ -49,6 +50,7 @@ export default function EquipmentPage(){
         <form onSubmit={add} className="form-grid compact">
           <input className="input" placeholder="Name" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
           <input className="input" placeholder="Serial" value={form.serial} onChange={e=>setForm({...form, serial:e.target.value})} />
+          <input className="input" type="date" value={form.created_at} onChange={e=>setForm({...form, created_at:e.target.value})} />
           <select className="select" value={form.owner_id} onChange={e=>setForm({...form, owner_id: e.target.value || ''})}>
           <option value="">No owner</option>
           {people.map(p=> <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -101,7 +103,7 @@ export default function EquipmentPage(){
                 <div className="record-header">
                   <div>
                     <h3 className="record-title"><Link to={`/equipment/${item.id}`}>{item.name}</Link></h3>
-                    <p className="record-meta">{owner ? `Owner: ${owner.name}` : 'No owner assigned'}</p>
+                    <p className="record-meta">{owner ? `Owner: ${owner.name}` : 'No owner assigned'} • Created {formatDisplayDate(item.created_at)}</p>
                   </div>
                   <span className="badge">Asset #{item.id}</span>
                 </div>

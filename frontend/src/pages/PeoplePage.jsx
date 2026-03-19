@@ -2,10 +2,12 @@ import React, {useEffect, useState} from 'react'
 import axios from 'axios'
 import { Link } from 'react-router-dom'
 import { apiUrl } from '../api'
+import { formatDisplayDate, todayDateInput } from '../date'
 
 export default function PeoplePage(){
   const [people, setPeople] = useState([])
   const [name, setName] = useState('')
+  const [createdAt, setCreatedAt] = useState(todayDateInput())
 
   useEffect(()=>{fetchPeople()}, [])
   async function fetchPeople(){
@@ -15,8 +17,9 @@ export default function PeoplePage(){
   async function add(e){
     e.preventDefault()
     if(!name) return
-    await axios.post(apiUrl('/people'), {name})
+    await axios.post(apiUrl('/people'), {name, created_at: createdAt})
     setName('')
+    setCreatedAt(todayDateInput())
     fetchPeople()
   }
   return (
@@ -40,6 +43,7 @@ export default function PeoplePage(){
           </div>
           <form onSubmit={add} className="form-grid">
             <input className="input" value={name} onChange={e=>setName(e.target.value)} placeholder="Full name" />
+            <input className="input" type="date" value={createdAt} onChange={e=>setCreatedAt(e.target.value)} />
             <button className="button button-primary">Add person</button>
           </form>
         </article>
@@ -66,7 +70,7 @@ export default function PeoplePage(){
               <div className="record-header">
                 <div>
                   <h3 className="record-title"><Link to={`/people/${p.id}`}>{p.name}</Link></h3>
-                  <p className="record-meta">{p.phone || 'No phone number saved'}</p>
+                  <p className="record-meta">{p.phone || 'No phone number saved'} • Created {formatDisplayDate(p.created_at)}</p>
                 </div>
                 <span className="badge">Customer #{p.id}</span>
               </div>

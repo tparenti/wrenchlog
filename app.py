@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
 from models import db, Person, Vehicle, Equipment, Maintenance, Project, ProjectPart, ProjectPhoto, ProjectTask
@@ -39,6 +40,27 @@ def parse_optional_float(value):
     if value in (None, ''):
         return None
     return float(value)
+
+
+def parse_optional_datetime(value):
+    if value in (None, ''):
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if normalized.endswith('Z'):
+            normalized = normalized[:-1] + '+00:00'
+        try:
+            parsed = datetime.fromisoformat(normalized)
+        except ValueError as exc:
+            raise ValueError('created_at must be an ISO date or datetime.') from exc
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone().replace(tzinfo=None)
+        return parsed
+    raise ValueError('created_at must be an ISO date or datetime.')
 
 
 def require_rockauto_client():
@@ -188,6 +210,14 @@ def ensure_maintenance_mileage_snapshot_column():
         db.session.commit()
 
 
+def ensure_created_at_column(table_name):
+    column_rows = db.session.execute(text(f'PRAGMA table_info({table_name})')).mappings().all()
+    column_names = {row['name'] for row in column_rows}
+    if 'created_at' not in column_names:
+        db.session.execute(text(f'ALTER TABLE {table_name} ADD COLUMN created_at DATETIME'))
+        db.session.commit()
+
+
 def apply_vehicle_mileage_snapshot(vehicle, mileage_snapshot):
     if vehicle is None or mileage_snapshot is None:
         return
@@ -234,6 +264,9 @@ with app.app_context():
     db.create_all()
     ensure_vehicle_mileage_column()
     ensure_maintenance_mileage_snapshot_column()
+    ensure_created_at_column('person')
+    ensure_created_at_column('vehicle')
+    ensure_created_at_column('equipment')
 
 
 @app.errorhandler(RequestEntityTooLarge)
@@ -242,13 +275,13 @@ def handle_request_entity_too_large(_error):
 
 # --- API endpoints for React frontend ---
 def person_to_dict(p):
-    return {"id": p.id, "name": p.name, "phone": p.phone}
+    return {"id": p.id, "name": p.name, "phone": p.phone, "created_at": p.created_at.isoformat() if p.created_at else None}
 
 def vehicle_to_dict(v):
-    return {"id": v.id, "vin": v.vin, "make": v.make, "model": v.model, "year": v.year, "mileage": v.mileage, "owner_id": v.owner_id}
+    return {"id": v.id, "vin": v.vin, "make": v.make, "model": v.model, "year": v.year, "mileage": v.mileage, "created_at": v.created_at.isoformat() if v.created_at else None, "owner_id": v.owner_id}
 
 def equipment_to_dict(e):
-    return {"id": e.id, "name": e.name, "serial": e.serial, "owner_id": e.owner_id}
+    return {"id": e.id, "name": e.name, "serial": e.serial, "created_at": e.created_at.isoformat() if e.created_at else None, "owner_id": e.owner_id}
 
 def maintenance_to_dict(m):
     return {"id": m.id, "title": m.title, "notes": m.notes, "mileage_snapshot": m.mileage_snapshot, "created_at": m.created_at.isoformat(), "vehicle_id": m.vehicle_id, "equipment_id": m.equipment_id}
@@ -325,7 +358,7 @@ def api_people():
         phone = data.get('phone')
         if not name:
             return jsonify({'error': 'name required'}), 400
-        p = Person(name=name, phone=phone)
+        p = Person(name=name, phone=phone, created_at=parse_optional_datetime(data.get('created_at')))
         db.session.add(p)
         db.session.commit()
         return jsonify(person_to_dict(p)), 201
@@ -345,6 +378,8 @@ def api_person_detail(person_id):
         data = request.get_json() or {}
         p.name = data.get('name', p.name)
         p.phone = data.get('phone', p.phone)
+        if 'created_at' in data:
+            p.created_at = parse_optional_datetime(data.get('created_at'))
         db.session.commit()
         return jsonify(person_to_dict(p))
     # DELETE
@@ -373,6 +408,7 @@ def api_vehicles():
             model=data.get('model'),
             year=data.get('year'),
             mileage=parse_optional_int(data.get('mileage')),
+            created_at=parse_optional_datetime(data.get('created_at')),
             owner_id=data.get('owner_id')
         )
         db.session.add(v)
@@ -394,6 +430,8 @@ def api_vehicle_detail(vehicle_id):
         v.model = data.get('model', v.model)
         v.year = data.get('year', v.year)
         v.mileage = parse_optional_int(data.get('mileage', v.mileage))
+        if 'created_at' in data:
+            v.created_at = parse_optional_datetime(data.get('created_at'))
         v.owner_id = data.get('owner_id', v.owner_id)
         db.session.commit()
         return jsonify(vehicle_to_dict(v))
@@ -482,6 +520,7 @@ def api_vehicle_projects(vehicle_id):
             status=data.get('status') or 'planning',
             summary=data.get('summary'),
             notes=data.get('notes'),
+            created_at=parse_optional_datetime(data.get('created_at')),
             vehicle_id=vehicle_id,
         )
         db.session.add(project)
@@ -507,6 +546,8 @@ def api_project_detail(project_id):
         project.status = data.get('status', project.status)
         project.summary = data.get('summary', project.summary)
         project.notes = data.get('notes', project.notes)
+        if 'created_at' in data:
+            project.created_at = parse_optional_datetime(data.get('created_at'))
         db.session.commit()
         return jsonify(project_to_dict(project))
     delete_project_assets(project)
@@ -520,6 +561,7 @@ def api_project_photos(project_id):
     project = Project.query.get_or_404(project_id)
     if request.method == 'POST':
         files = request.files.getlist('photos') or request.files.getlist('photo')
+        created_at = parse_optional_datetime(request.form.get('created_at'))
         if not files:
             return jsonify({'error': 'at least one image file is required'}), 400
 
@@ -530,6 +572,8 @@ def api_project_photos(project_id):
         for file_storage in files:
             photo = save_project_photo(project, file_storage)
             if photo is not None:
+                if created_at is not None:
+                    photo.created_at = created_at
                 created_photos.append(photo)
 
         if not created_photos:
@@ -548,9 +592,15 @@ def api_project_photo_file(photo_id):
     return send_from_directory(project_upload_directory(photo.project_id), photo.stored_filename)
 
 
-@app.route('/api/project-photos/<int:photo_id>', methods=['DELETE'])
+@app.route('/api/project-photos/<int:photo_id>', methods=['PUT', 'DELETE'])
 def api_project_photo_detail(photo_id):
     photo = ProjectPhoto.query.get_or_404(photo_id)
+    if request.method == 'PUT':
+        data = request.get_json() or {}
+        if 'created_at' in data:
+            photo.created_at = parse_optional_datetime(data.get('created_at'))
+        db.session.commit()
+        return jsonify(project_photo_to_dict(photo))
     delete_project_photo_file(photo)
     db.session.delete(photo)
     db.session.commit()
@@ -570,6 +620,7 @@ def api_project_tasks(project_id):
             notes=data.get('notes'),
             is_done=bool(data.get('is_done', False)),
             is_milestone=bool(data.get('is_milestone', False)),
+            created_at=parse_optional_datetime(data.get('created_at')),
             project_id=project.id,
         )
         db.session.add(task)
@@ -592,6 +643,8 @@ def api_project_task_detail(task_id):
             task.is_done = bool(data.get('is_done'))
         if 'is_milestone' in data:
             task.is_milestone = bool(data.get('is_milestone'))
+        if 'created_at' in data:
+            task.created_at = parse_optional_datetime(data.get('created_at'))
         db.session.commit()
         return jsonify(project_task_to_dict(task))
     db.session.delete(task)
@@ -615,6 +668,7 @@ def api_project_parts(project_id):
             actual_cost=parse_optional_float(data.get('actual_cost')),
             status=data.get('status') or 'planned',
             notes=data.get('notes'),
+            created_at=parse_optional_datetime(data.get('created_at')),
             project_id=project.id,
         )
         db.session.add(part)
@@ -641,6 +695,8 @@ def api_project_part_detail(part_id):
             part.actual_cost = parse_optional_float(data.get('actual_cost'))
         part.status = data.get('status', part.status)
         part.notes = data.get('notes', part.notes)
+        if 'created_at' in data:
+            part.created_at = parse_optional_datetime(data.get('created_at'))
         db.session.commit()
         return jsonify(project_part_to_dict(part))
     db.session.delete(part)
@@ -652,7 +708,7 @@ def api_project_part_detail(part_id):
 def api_equipment():
     if request.method == 'POST':
         data = request.get_json() or {}
-        e = Equipment(name=data.get('name'), serial=data.get('serial'), owner_id=data.get('owner_id'))
+        e = Equipment(name=data.get('name'), serial=data.get('serial'), created_at=parse_optional_datetime(data.get('created_at')), owner_id=data.get('owner_id'))
         db.session.add(e)
         db.session.commit()
         return jsonify(equipment_to_dict(e)), 201
@@ -669,6 +725,8 @@ def api_equipment_detail(equipment_id):
         data = request.get_json() or {}
         e.name = data.get('name', e.name)
         e.serial = data.get('serial', e.serial)
+        if 'created_at' in data:
+            e.created_at = parse_optional_datetime(data.get('created_at'))
         e.owner_id = data.get('owner_id', e.owner_id)
         db.session.commit()
         return jsonify(equipment_to_dict(e))
@@ -685,7 +743,7 @@ def api_vehicle_maintenance(vehicle_id):
     if request.method == 'POST':
         data = request.get_json() or {}
         mileage_snapshot = parse_optional_int(data.get('mileage_snapshot'))
-        m = Maintenance(title=data.get('title'), notes=data.get('notes'), mileage_snapshot=mileage_snapshot, vehicle_id=vehicle_id)
+        m = Maintenance(title=data.get('title'), notes=data.get('notes'), mileage_snapshot=mileage_snapshot, created_at=parse_optional_datetime(data.get('created_at')), vehicle_id=vehicle_id)
         db.session.add(m)
         apply_vehicle_mileage_snapshot(vehicle, mileage_snapshot)
         db.session.commit()
@@ -698,7 +756,7 @@ def api_vehicle_maintenance(vehicle_id):
 def api_equipment_maintenance(equipment_id):
     if request.method == 'POST':
         data = request.get_json() or {}
-        m = Maintenance(title=data.get('title'), notes=data.get('notes'), equipment_id=equipment_id)
+        m = Maintenance(title=data.get('title'), notes=data.get('notes'), created_at=parse_optional_datetime(data.get('created_at')), equipment_id=equipment_id)
         db.session.add(m)
         db.session.commit()
         return jsonify(maintenance_to_dict(m)), 201
@@ -716,6 +774,8 @@ def api_maintenance_entry(entry_id):
         m.title = data.get('title', m.title)
         m.notes = data.get('notes', m.notes)
         m.mileage_snapshot = parse_optional_int(data.get('mileage_snapshot', m.mileage_snapshot))
+        if 'created_at' in data:
+            m.created_at = parse_optional_datetime(data.get('created_at'))
         if m.vehicle is not None:
             apply_vehicle_mileage_snapshot(m.vehicle, m.mileage_snapshot)
         db.session.commit()

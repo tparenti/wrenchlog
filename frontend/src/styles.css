@@ -512,6 +512,71 @@ button {
 	background: linear-gradient(180deg, var(--surface-strong), var(--surface));
 }
 
+.mileage-chart-stack {
+	display: grid;
+	gap: 14px;
+}
+
+.mileage-chart-shell {
+	padding: 10px;
+	border: 1px solid var(--line);
+	border-radius: 22px;
+	background: linear-gradient(180deg, var(--surface-strong), var(--surface));
+	overflow-x: auto;
+}
+
+.mileage-chart {
+	width: 100%;
+	min-width: 640px;
+	height: auto;
+	display: block;
+}
+
+.mileage-axis {
+	stroke: var(--line-strong);
+	stroke-width: 1.5;
+}
+
+.mileage-grid {
+	stroke: var(--line);
+	stroke-width: 1;
+	stroke-dasharray: 4 6;
+}
+
+.mileage-line {
+	fill: none;
+	stroke: var(--brand);
+	stroke-width: 3;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.mileage-point {
+	fill: var(--surface-strong);
+	stroke: var(--brand);
+	stroke-width: 2.5;
+}
+
+.mileage-point-current {
+	stroke: var(--accent);
+	fill: var(--surface-strong);
+}
+
+.mileage-axis-label {
+	fill: var(--text-muted);
+	font-size: 12px;
+}
+
+.mileage-axis-label-end {
+	text-anchor: end;
+}
+
+.mileage-legend {
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
 .photo-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

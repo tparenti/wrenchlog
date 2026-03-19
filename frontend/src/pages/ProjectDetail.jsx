@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import axios from 'axios'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { apiUrl } from '../api'
+import { formatDateInput, formatDisplayDate, todayDateInput } from '../date'
 
 const STATUS_OPTIONS = ['planning', 'in progress', 'waiting on parts', 'on hold', 'complete']
 const PART_STATUS_OPTIONS = ['planned', 'ordered', 'received', 'installed', 'returned']
@@ -10,12 +11,17 @@ export default function ProjectDetail(){
   const { id } = useParams()
   const navigate = useNavigate()
   const [project, setProject] = useState(null)
-  const [form, setForm] = useState({ title: '', status: 'planning', summary: '', notes: '' })
-  const [taskForm, setTaskForm] = useState({ title: '', notes: '', is_milestone: false })
-  const [partForm, setPartForm] = useState({ name: '', part_number: '', quantity: '1', estimated_cost: '', actual_cost: '', status: 'planned', notes: '' })
+  const [form, setForm] = useState({ title: '', status: 'planning', summary: '', notes: '', created_at: '' })
+  const [taskForm, setTaskForm] = useState({ title: '', notes: '', is_milestone: false, created_at: todayDateInput() })
+  const [editingTaskId, setEditingTaskId] = useState(null)
+  const [editingTaskForm, setEditingTaskForm] = useState({ title: '', notes: '', is_milestone: false, created_at: '' })
+  const [partForm, setPartForm] = useState({ name: '', part_number: '', quantity: '1', estimated_cost: '', actual_cost: '', status: 'planned', notes: '', created_at: todayDateInput() })
   const [editingPartId, setEditingPartId] = useState(null)
-  const [editingPartForm, setEditingPartForm] = useState({ name: '', part_number: '', quantity: '1', estimated_cost: '', actual_cost: '', status: 'planned', notes: '' })
+  const [editingPartForm, setEditingPartForm] = useState({ name: '', part_number: '', quantity: '1', estimated_cost: '', actual_cost: '', status: 'planned', notes: '', created_at: '' })
   const [selectedPhotos, setSelectedPhotos] = useState([])
+  const [photoCreatedAt, setPhotoCreatedAt] = useState(todayDateInput())
+  const [editingPhotoId, setEditingPhotoId] = useState(null)
+  const [editingPhotoCreatedAt, setEditingPhotoCreatedAt] = useState('')
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false)
 
   useEffect(() => { fetchProject() }, [id])
@@ -28,6 +34,7 @@ export default function ProjectDetail(){
       status: response.data.status || 'planning',
       summary: response.data.summary || '',
       notes: response.data.notes || '',
+      created_at: formatDateInput(response.data.created_at),
     })
   }
 
@@ -40,8 +47,31 @@ export default function ProjectDetail(){
   async function addTask(e){
     e.preventDefault()
     await axios.post(apiUrl(`/projects/${id}/tasks`), taskForm)
-    setTaskForm({ title: '', notes: '', is_milestone: false })
+    setTaskForm({ title: '', notes: '', is_milestone: false, created_at: todayDateInput() })
     fetchProject()
+  }
+
+  function startEditingTask(task){
+    setEditingTaskId(task.id)
+    setEditingTaskForm({
+      title: task.title || '',
+      notes: task.notes || '',
+      is_milestone: Boolean(task.is_milestone),
+      created_at: formatDateInput(task.created_at),
+    })
+  }
+
+  async function saveTask(e){
+    e.preventDefault()
+    await axios.put(apiUrl(`/project-tasks/${editingTaskId}`), editingTaskForm)
+    setEditingTaskId(null)
+    setEditingTaskForm({ title: '', notes: '', is_milestone: false, created_at: '' })
+    fetchProject()
+  }
+
+  function cancelEditingTask(){
+    setEditingTaskId(null)
+    setEditingTaskForm({ title: '', notes: '', is_milestone: false, created_at: '' })
   }
 
   async function toggleTask(task){
@@ -57,7 +87,7 @@ export default function ProjectDetail(){
   async function addPart(e){
     e.preventDefault()
     await axios.post(apiUrl(`/projects/${id}/parts`), partForm)
-    setPartForm({ name: '', part_number: '', quantity: '1', estimated_cost: '', actual_cost: '', status: 'planned', notes: '' })
+    setPartForm({ name: '', part_number: '', quantity: '1', estimated_cost: '', actual_cost: '', status: 'planned', notes: '', created_at: todayDateInput() })
     fetchProject()
   }
 
@@ -71,6 +101,7 @@ export default function ProjectDetail(){
       actual_cost: part.actual_cost ?? '',
       status: part.status || 'planned',
       notes: part.notes || '',
+      created_at: formatDateInput(part.created_at),
     })
   }
 
@@ -78,13 +109,13 @@ export default function ProjectDetail(){
     e.preventDefault()
     await axios.put(apiUrl(`/project-parts/${editingPartId}`), editingPartForm)
     setEditingPartId(null)
-    setEditingPartForm({ name: '', part_number: '', quantity: '1', estimated_cost: '', actual_cost: '', status: 'planned', notes: '' })
+    setEditingPartForm({ name: '', part_number: '', quantity: '1', estimated_cost: '', actual_cost: '', status: 'planned', notes: '', created_at: '' })
     fetchProject()
   }
 
   function cancelEditingPart(){
     setEditingPartId(null)
-    setEditingPartForm({ name: '', part_number: '', quantity: '1', estimated_cost: '', actual_cost: '', status: 'planned', notes: '' })
+    setEditingPartForm({ name: '', part_number: '', quantity: '1', estimated_cost: '', actual_cost: '', status: 'planned', notes: '', created_at: '' })
   }
 
   async function deletePart(partId){
@@ -98,11 +129,13 @@ export default function ProjectDetail(){
 
     const formData = new FormData()
     selectedPhotos.forEach(file => formData.append('photos', file))
+    formData.append('created_at', photoCreatedAt)
 
     setIsUploadingPhotos(true)
     try {
       await axios.post(apiUrl(`/projects/${id}/photos`), formData)
       setSelectedPhotos([])
+      setPhotoCreatedAt(todayDateInput())
       if (e.target?.reset) e.target.reset()
       fetchProject()
     } finally {
@@ -113,6 +146,23 @@ export default function ProjectDetail(){
   async function deletePhoto(photoId){
     await axios.delete(apiUrl(`/project-photos/${photoId}`))
     fetchProject()
+  }
+
+  function startEditingPhoto(photo){
+    setEditingPhotoId(photo.id)
+    setEditingPhotoCreatedAt(formatDateInput(photo.created_at))
+  }
+
+  async function savePhotoDate(photoId){
+    await axios.put(apiUrl(`/project-photos/${photoId}`), { created_at: editingPhotoCreatedAt })
+    setEditingPhotoId(null)
+    setEditingPhotoCreatedAt('')
+    fetchProject()
+  }
+
+  function cancelEditingPhoto(){
+    setEditingPhotoId(null)
+    setEditingPhotoCreatedAt('')
   }
 
   async function deleteProject(){
@@ -138,6 +188,7 @@ export default function ProjectDetail(){
             <div className="badge-row">
               <span className="badge accent-badge">{project.status}</span>
               {project.vehicle ? <Link className="badge" to={`/vehicles/${project.vehicle.id}`}>{project.vehicle.year} {project.vehicle.make} {project.vehicle.model}</Link> : null}
+              <span className="badge">Created: {formatDisplayDate(project.created_at)}</span>
             </div>
           </div>
           <div className="action-row">
@@ -158,6 +209,7 @@ export default function ProjectDetail(){
           <select className="select" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
             {STATUS_OPTIONS.map(status => <option key={status} value={status}>{status}</option>)}
           </select>
+          <input className="input" type="date" value={form.created_at} onChange={e => setForm({ ...form, created_at: e.target.value })} />
           <textarea className="textarea" value={form.summary} onChange={e => setForm({ ...form, summary: e.target.value })} placeholder="Short summary of the project goal" />
           <textarea className="textarea" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Detailed notes, parts plan, blockers, or progress log" />
           <div className="action-row">
@@ -178,6 +230,7 @@ export default function ProjectDetail(){
           </div>
           <form onSubmit={addTask} className="form-grid">
             <input className="input" value={taskForm.title} onChange={e => setTaskForm({ ...taskForm, title: e.target.value })} placeholder="Task or milestone title" />
+            <input className="input" type="date" value={taskForm.created_at} onChange={e => setTaskForm({ ...taskForm, created_at: e.target.value })} />
             <textarea className="textarea" value={taskForm.notes} onChange={e => setTaskForm({ ...taskForm, notes: e.target.value })} placeholder="Optional notes" />
             <label className="badge" style={{ width: 'fit-content' }}>
               <input type="checkbox" checked={taskForm.is_milestone} onChange={e => setTaskForm({ ...taskForm, is_milestone: e.target.checked })} />
@@ -191,18 +244,37 @@ export default function ProjectDetail(){
             <div className="entry-list">
               {project.tasks.map(task => (
                 <article key={task.id} className="entry-card">
-                  <div className="record-header">
-                    <div>
-                      <h4 className="entry-title">{task.title}</h4>
-                      <p className="record-meta">{task.is_milestone ? 'Milestone' : 'Checklist item'}</p>
-                    </div>
-                    <span className="badge accent-badge">{task.is_done ? 'done' : 'open'}</span>
-                  </div>
-                  <p className="entry-notes">{task.notes || 'No notes.'}</p>
-                  <div className="action-row">
-                    <button className="button button-secondary" onClick={() => toggleTask(task)}>{task.is_done ? 'Mark open' : 'Mark done'}</button>
-                    <button className="button button-danger" onClick={() => deleteTask(task.id)}>Delete</button>
-                  </div>
+                  {editingTaskId === task.id ? (
+                    <form onSubmit={saveTask} className="entry-stack">
+                      <input className="input" value={editingTaskForm.title} onChange={e => setEditingTaskForm({ ...editingTaskForm, title: e.target.value })} />
+                      <input className="input" type="date" value={editingTaskForm.created_at} onChange={e => setEditingTaskForm({ ...editingTaskForm, created_at: e.target.value })} />
+                      <textarea className="textarea" value={editingTaskForm.notes} onChange={e => setEditingTaskForm({ ...editingTaskForm, notes: e.target.value })} placeholder="Notes" />
+                      <label className="badge" style={{ width: 'fit-content' }}>
+                        <input type="checkbox" checked={editingTaskForm.is_milestone} onChange={e => setEditingTaskForm({ ...editingTaskForm, is_milestone: e.target.checked })} />
+                        Milestone
+                      </label>
+                      <div className="action-row">
+                        <button className="button button-primary">Save task</button>
+                        <button type="button" className="button button-secondary" onClick={cancelEditingTask}>Cancel</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="record-header">
+                        <div>
+                          <h4 className="entry-title">{task.title}</h4>
+                          <p className="record-meta">{task.is_milestone ? 'Milestone' : 'Checklist item'} • {formatDisplayDate(task.created_at)}</p>
+                        </div>
+                        <span className="badge accent-badge">{task.is_done ? 'done' : 'open'}</span>
+                      </div>
+                      <p className="entry-notes">{task.notes || 'No notes.'}</p>
+                      <div className="action-row">
+                        <button className="button button-secondary" onClick={() => startEditingTask(task)}>Edit</button>
+                        <button className="button button-secondary" onClick={() => toggleTask(task)}>{task.is_done ? 'Mark open' : 'Mark done'}</button>
+                        <button className="button button-danger" onClick={() => deleteTask(task.id)}>Delete</button>
+                      </div>
+                    </>
+                  )}
                 </article>
               ))}
             </div>
@@ -230,6 +302,7 @@ export default function ProjectDetail(){
             <input className="input" value={partForm.quantity} onChange={e => setPartForm({ ...partForm, quantity: e.target.value })} placeholder="Quantity" />
             <input className="input" value={partForm.estimated_cost} onChange={e => setPartForm({ ...partForm, estimated_cost: e.target.value })} placeholder="Estimated cost" />
             <input className="input" value={partForm.actual_cost} onChange={e => setPartForm({ ...partForm, actual_cost: e.target.value })} placeholder="Actual cost" />
+            <input className="input" type="date" value={partForm.created_at} onChange={e => setPartForm({ ...partForm, created_at: e.target.value })} />
             <select className="select" value={partForm.status} onChange={e => setPartForm({ ...partForm, status: e.target.value })}>
               {PART_STATUS_OPTIONS.map(status => <option key={status} value={status}>{status}</option>)}
             </select>
@@ -249,6 +322,7 @@ export default function ProjectDetail(){
                       <input className="input" value={editingPartForm.quantity} onChange={e => setEditingPartForm({ ...editingPartForm, quantity: e.target.value })} placeholder="Quantity" />
                       <input className="input" value={editingPartForm.estimated_cost} onChange={e => setEditingPartForm({ ...editingPartForm, estimated_cost: e.target.value })} placeholder="Estimated cost" />
                       <input className="input" value={editingPartForm.actual_cost} onChange={e => setEditingPartForm({ ...editingPartForm, actual_cost: e.target.value })} placeholder="Actual cost" />
+                      <input className="input" type="date" value={editingPartForm.created_at} onChange={e => setEditingPartForm({ ...editingPartForm, created_at: e.target.value })} />
                       <select className="select" value={editingPartForm.status} onChange={e => setEditingPartForm({ ...editingPartForm, status: e.target.value })}>
                         {PART_STATUS_OPTIONS.map(status => <option key={status} value={status}>{status}</option>)}
                       </select>
@@ -263,7 +337,7 @@ export default function ProjectDetail(){
                       <div className="record-header">
                         <div>
                           <h4 className="entry-title">{part.name}</h4>
-                          <p className="record-meta">{part.part_number || 'No part number'} • Qty {part.quantity}</p>
+                          <p className="record-meta">{part.part_number || 'No part number'} • Qty {part.quantity} • {formatDisplayDate(part.created_at)}</p>
                         </div>
                         <span className="badge accent-badge">{part.status}</span>
                       </div>
@@ -305,6 +379,7 @@ export default function ProjectDetail(){
             multiple
             onChange={e => setSelectedPhotos(Array.from(e.target.files || []))}
           />
+          <input className="input" type="date" value={photoCreatedAt} onChange={e => setPhotoCreatedAt(e.target.value)} />
           <div className="action-row">
             <button className="button button-primary" disabled={isUploadingPhotos || !selectedPhotos.length}>
               {isUploadingPhotos ? 'Uploading…' : 'Upload photos'}
@@ -322,10 +397,19 @@ export default function ProjectDetail(){
                 <div className="entry-stack">
                   <div>
                     <h4 className="entry-title">{photo.original_filename}</h4>
-                    <p className="record-meta">{photo.created_at ? new Date(photo.created_at).toLocaleString() : 'Uploaded now'}</p>
+                    <p className="record-meta">{formatDisplayDate(photo.created_at)}</p>
                   </div>
+                  {editingPhotoId === photo.id ? <input className="input" type="date" value={editingPhotoCreatedAt} onChange={e => setEditingPhotoCreatedAt(e.target.value)} /> : null}
                   <div className="action-row">
                     <a className="button button-secondary" href={photo.file_url} target="_blank" rel="noreferrer">Open</a>
+                    {editingPhotoId === photo.id ? (
+                      <>
+                        <button className="button button-primary" onClick={() => savePhotoDate(photo.id)}>Save date</button>
+                        <button type="button" className="button button-secondary" onClick={cancelEditingPhoto}>Cancel</button>
+                      </>
+                    ) : (
+                      <button className="button button-secondary" onClick={() => startEditingPhoto(photo)}>Edit date</button>
+                    )}
                     <button className="button button-danger" onClick={() => deletePhoto(photo.id)}>Delete</button>
                   </div>
                 </div>

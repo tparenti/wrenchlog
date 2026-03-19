@@ -2,12 +2,13 @@ import React, {useEffect, useState} from 'react'
 import axios from 'axios'
 import { Link, useParams } from 'react-router-dom'
 import { apiUrl } from '../api'
+import { formatDateInput, formatDisplayDate, todayDateInput } from '../date'
 
 export default function EquipmentDetail(){
   const { id } = useParams()
   const [equipment, setEquipment] = useState(null)
   const [entries, setEntries] = useState([])
-  const [form, setForm] = useState({title:'', notes:''})
+  const [form, setForm] = useState({title:'', notes:'', created_at: todayDateInput()})
 
   useEffect(()=>{fetch()}, [id])
   async function fetch(){
@@ -18,14 +19,14 @@ export default function EquipmentDetail(){
   async function add(e){
     e.preventDefault()
     await axios.post(apiUrl(`/equipment/${id}/maintenance`), form)
-    setForm({title:'', notes:''})
+    setForm({title:'', notes:'', created_at: todayDateInput()})
     fetch()
   }
   const [editingEquipment, setEditingEquipment] = useState(false)
-  const [equipmentForm, setEquipmentForm] = useState({name:'', serial:'', owner_id:''})
+  const [equipmentForm, setEquipmentForm] = useState({name:'', serial:'', created_at:'', owner_id:''})
   const [people, setPeople] = useState([])
   const [editingEntryId, setEditingEntryId] = useState(null)
-  const [editingEntryForm, setEditingEntryForm] = useState({title:'', notes:''})
+  const [editingEntryForm, setEditingEntryForm] = useState({title:'', notes:'', created_at:''})
 
   useEffect(()=>{axios.get(apiUrl('/people')).then(r=>setPeople(r.data))}, [])
 
@@ -44,7 +45,7 @@ export default function EquipmentDetail(){
 
   async function editEntry(entry){
     setEditingEntryId(entry.id)
-    setEditingEntryForm({title: entry.title || '', notes: entry.notes || ''})
+    setEditingEntryForm({title: entry.title || '', notes: entry.notes || '', created_at: formatDateInput(entry.created_at)})
   }
 
   async function deleteEntry(entryId){
@@ -58,12 +59,12 @@ export default function EquipmentDetail(){
     if(!editingEntryId) return
     await axios.put(apiUrl(`/maintenance/${editingEntryId}`), editingEntryForm)
     setEditingEntryId(null)
-    setEditingEntryForm({title:'', notes:''})
+    setEditingEntryForm({title:'', notes:'', created_at:''})
     fetch()
   }
   function cancelEditingEntry(){
     setEditingEntryId(null)
-    setEditingEntryForm({title:'', notes:''})
+    setEditingEntryForm({title:'', notes:'', created_at:''})
   }
 
   if(!equipment) return <div>Loading...</div>
@@ -79,6 +80,7 @@ export default function EquipmentDetail(){
             <div className="badge-row">
               {owner ? <Link to={`/people/${owner.id}`} className="badge accent-badge">Owner: {owner.name}</Link> : <span className="badge">No owner assigned</span>}
               {equipment.serial ? <span className="badge">Serial: {equipment.serial}</span> : null}
+              <span className="badge">Created: {formatDisplayDate(equipment.created_at)}</span>
               <span className="badge">{entries.length} maintenance entries</span>
             </div>
           </div>
@@ -88,6 +90,7 @@ export default function EquipmentDetail(){
         <form onSubmit={saveEquipment} className="form-grid compact">
           <input className="input" placeholder="Name" value={equipmentForm.name} onChange={e=>setEquipmentForm({...equipmentForm, name:e.target.value})} />
           <input className="input" placeholder="Serial" value={equipmentForm.serial} onChange={e=>setEquipmentForm({...equipmentForm, serial:e.target.value})} />
+          <input className="input" type="date" value={equipmentForm.created_at} onChange={e=>setEquipmentForm({...equipmentForm, created_at:e.target.value})} />
           <select className="select" value={equipmentForm.owner_id || ''} onChange={e=>setEquipmentForm({...equipmentForm, owner_id: e.target.value || null})}>
               <option value="">No owner</option>
               {people.map(p=> <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -99,7 +102,7 @@ export default function EquipmentDetail(){
         </form>
       ) : (
         <div className="action-row">
-          <button className="button button-secondary" onClick={()=>{setEquipmentForm({name:equipment.name, serial:equipment.serial, owner_id:equipment.owner_id}); setEditingEquipment(true)}}>Edit equipment</button>
+          <button className="button button-secondary" onClick={()=>{setEquipmentForm({name:equipment.name, serial:equipment.serial, created_at: formatDateInput(equipment.created_at), owner_id:equipment.owner_id}); setEditingEquipment(true)}}>Edit equipment</button>
           <button className="button button-danger" onClick={deleteEquipment}>Delete equipment</button>
         </div>
       )}
@@ -114,6 +117,7 @@ export default function EquipmentDetail(){
         </div>
         <form onSubmit={add} className="form-grid">
           <input className="input" value={form.title} onChange={e=>setForm({...form, title:e.target.value})} placeholder="Entry title" />
+          <input className="input" type="date" value={form.created_at} onChange={e=>setForm({...form, created_at:e.target.value})} />
           <textarea className="textarea" value={form.notes} onChange={e=>setForm({...form, notes:e.target.value})} placeholder="Notes"></textarea>
           <div className="action-row">
             <button className="button button-primary">Add entry</button>
@@ -136,6 +140,7 @@ export default function EquipmentDetail(){
               <form onSubmit={saveEditingEntry}>
                 <div className="entry-stack">
                   <input className="input" value={editingEntryForm.title} onChange={e=>setEditingEntryForm({...editingEntryForm, title:e.target.value})} />
+                  <input className="input" type="date" value={editingEntryForm.created_at} onChange={e=>setEditingEntryForm({...editingEntryForm, created_at:e.target.value})} />
                   <textarea className="textarea" value={editingEntryForm.notes} onChange={e=>setEditingEntryForm({...editingEntryForm, notes:e.target.value})} />
                   <div className="action-row">
                     <button type="submit" className="button button-primary">Save</button>
@@ -148,7 +153,7 @@ export default function EquipmentDetail(){
                 <div className="record-header">
                   <div>
                     <h4 className="entry-title">{m.title}</h4>
-                    <p className="record-meta">{new Date(m.created_at).toLocaleString()}</p>
+                    <p className="record-meta">{formatDisplayDate(m.created_at)}</p>
                   </div>
                 </div>
                 <p className="entry-notes">{m.notes || 'No notes recorded.'}</p>

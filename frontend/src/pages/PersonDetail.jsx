@@ -2,18 +2,19 @@ import React, {useEffect, useState} from 'react'
 import axios from 'axios'
 import { useParams, Link } from 'react-router-dom'
 import { apiUrl } from '../api'
+import { formatDateInput, formatDisplayDate } from '../date'
 
 export default function PersonDetail(){
   const { id } = useParams()
   const [person, setPerson] = useState(null)
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState({name:'', phone:''})
+  const [form, setForm] = useState({name:'', phone:'', created_at:''})
 
   useEffect(()=>{fetch()}, [id])
   async function fetch(){
     const res = await axios.get(apiUrl(`/people/${id}`))
     setPerson(res.data)
-    setForm({name: res.data.name || '', phone: res.data.phone || ''})
+    setForm({name: res.data.name || '', phone: res.data.phone || '', created_at: formatDateInput(res.data.created_at)})
   }
   async function save(e){
     e.preventDefault()
@@ -49,6 +50,7 @@ export default function PersonDetail(){
               <span className="badge">{person.vehicles.length} vehicles</span>
               <span className="badge">{person.equipment.length} equipment items</span>
               <span className="badge accent-badge">Phone: {person.phone || 'Not set'}</span>
+              <span className="badge">Created: {formatDisplayDate(person.created_at)}</span>
             </div>
           </div>
         </div>
@@ -57,6 +59,7 @@ export default function PersonDetail(){
         <form onSubmit={save} className="form-grid compact">
           <input className="input" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} placeholder="Full name" />
           <input className="input" value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} placeholder="Phone number" />
+          <input className="input" type="date" value={form.created_at} onChange={e=>setForm({...form, created_at:e.target.value})} />
           <div className="action-row">
             <button className="button button-primary">Save changes</button>
             <button type="button" className="button button-secondary" onClick={()=>setEditing(false)}>Cancel</button>

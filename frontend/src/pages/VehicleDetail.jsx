@@ -2,6 +2,122 @@ import React, {useEffect, useState} from 'react'
 import axios from 'axios'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { apiUrl } from '../api'
+import { formatDateInput, formatDisplayDate, todayDateInput } from '../date'
+
+function formatMileage(value){
+  return Number(value).toLocaleString()
+}
+
+function formatShortDate(value){
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Unknown date'
+  return date.toLocaleDateString()
+}
+
+function buildMileageHistory(entries, currentMileage){
+  const history = entries
+    .filter(entry => entry.mileage_snapshot != null && entry.mileage_snapshot !== '' && Number.isFinite(Number(entry.mileage_snapshot)))
+    .map(entry => ({
+      id: `maintenance-${entry.id}`,
+      date: entry.created_at,
+      title: entry.title || 'Maintenance entry',
+      mileage: Number(entry.mileage_snapshot),
+      kind: 'maintenance',
+    }))
+    .sort((left, right) => new Date(left.date) - new Date(right.date))
+
+  if (currentMileage != null && currentMileage !== '' && Number.isFinite(Number(currentMileage))) {
+    const mileageValue = Number(currentMileage)
+    const lastPoint = history[history.length - 1]
+    if (!lastPoint || lastPoint.mileage !== mileageValue) {
+      history.push({
+        id: 'current-mileage',
+        date: new Date().toISOString(),
+        title: 'Current mileage',
+        mileage: mileageValue,
+        kind: 'current',
+      })
+    }
+  }
+
+  return history
+}
+
+function MileageChart({ points }){
+  if (!points.length) {
+    return (
+      <div className="empty-state">
+        <p className="muted">Add mileage to the vehicle or maintenance entries to see the trend.</p>
+      </div>
+    )
+  }
+
+  const width = 720
+  const height = 260
+  const padding = { top: 20, right: 20, bottom: 34, left: 20 }
+  const innerWidth = width - padding.left - padding.right
+  const innerHeight = height - padding.top - padding.bottom
+  const mileages = points.map(point => point.mileage)
+  const dates = points.map(point => new Date(point.date).getTime()).filter(value => Number.isFinite(value))
+  const minMileage = Math.min(...mileages)
+  const maxMileage = Math.max(...mileages)
+  const mileageRange = maxMileage - minMileage || Math.max(10, Math.round(maxMileage * 0.02) || 10)
+  const yMin = minMileage - mileageRange * 0.1
+  const yMax = maxMileage + mileageRange * 0.1
+  const dateMin = dates.length ? Math.min(...dates) : 0
+  const dateMax = dates.length ? Math.max(...dates) : 0
+  const useTimeScale = dateMax > dateMin
+
+  const chartPoints = points.map((point, index) => {
+    const timestamp = new Date(point.date).getTime()
+    const x = useTimeScale
+      ? padding.left + ((timestamp - dateMin) / (dateMax - dateMin)) * innerWidth
+      : padding.left + (points.length === 1 ? innerWidth / 2 : (index / (points.length - 1)) * innerWidth)
+    const y = padding.top + (1 - ((point.mileage - yMin) / (yMax - yMin || 1))) * innerHeight
+    return { ...point, x, y }
+  })
+
+  const polylinePoints = chartPoints.map(point => `${point.x},${point.y}`).join(' ')
+  const delta = points.length > 1 ? points[points.length - 1].mileage - points[0].mileage : 0
+
+  return (
+    <div className="mileage-chart-stack">
+      <div className="meta-row">
+        <span className="badge">Start: {formatMileage(points[0].mileage)}</span>
+        <span className="badge accent-badge">Latest: {formatMileage(points[points.length - 1].mileage)}</span>
+        {points.length > 1 ? <span className="badge">Change: {delta >= 0 ? '+' : ''}{formatMileage(delta)}</span> : null}
+      </div>
+      <div className="mileage-chart-shell">
+        <svg className="mileage-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Vehicle mileage over time">
+          <line className="mileage-axis" x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} />
+          <line className="mileage-axis" x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} />
+          <line className="mileage-grid" x1={padding.left} y1={padding.top} x2={width - padding.right} y2={padding.top} />
+          <line className="mileage-grid" x1={padding.left} y1={padding.top + innerHeight / 2} x2={width - padding.right} y2={padding.top + innerHeight / 2} />
+          <line className="mileage-grid" x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} />
+          {chartPoints.length > 1 ? <polyline className="mileage-line" points={polylinePoints} /> : null}
+          {chartPoints.map(point => (
+            <g key={point.id}>
+              <circle className={point.kind === 'current' ? 'mileage-point mileage-point-current' : 'mileage-point'} cx={point.x} cy={point.y} r={5} />
+              <title>{`${point.title} • ${formatShortDate(point.date)} • ${formatMileage(point.mileage)} miles`}</title>
+            </g>
+          ))}
+          <text className="mileage-axis-label" x={padding.left} y={padding.top - 4}>{formatMileage(Math.round(yMax))}</text>
+          <text className="mileage-axis-label" x={padding.left} y={padding.top + innerHeight / 2 - 4}>{formatMileage(Math.round((yMin + yMax) / 2))}</text>
+          <text className="mileage-axis-label" x={padding.left} y={height - padding.bottom - 6}>{formatMileage(Math.round(yMin))}</text>
+          <text className="mileage-axis-label" x={padding.left} y={height - 10}>{formatShortDate(points[0].date)}</text>
+          <text className="mileage-axis-label mileage-axis-label-end" x={width - padding.right} y={height - 10}>{formatShortDate(points[points.length - 1].date)}</text>
+        </svg>
+      </div>
+      <div className="mileage-legend">
+        {chartPoints.map(point => (
+          <span key={point.id} className="badge">
+            {point.kind === 'current' ? 'Current' : formatShortDate(point.date)}: {formatMileage(point.mileage)}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export default function VehicleDetail(){
   const { id } = useParams()
@@ -9,12 +125,12 @@ export default function VehicleDetail(){
   const [vehicle, setVehicle] = useState(null)
   const [entries, setEntries] = useState([])
   const [projects, setProjects] = useState([])
-  const [form, setForm] = useState({title:'', notes:'', mileage_snapshot:''})
+  const [form, setForm] = useState({title:'', notes:'', mileage_snapshot:'', created_at: todayDateInput()})
   const [editingVehicle, setEditingVehicle] = useState(false)
-  const [vehicleForm, setVehicleForm] = useState({vin:'', make:'', model:'', year:'', mileage:'', owner_id:''})
+  const [vehicleForm, setVehicleForm] = useState({vin:'', make:'', model:'', year:'', mileage:'', created_at:'', owner_id:''})
   const [people, setPeople] = useState([])
   const [editingEntryId, setEditingEntryId] = useState(null)
-  const [editingEntryForm, setEditingEntryForm] = useState({title:'', notes:'', mileage_snapshot:''})
+  const [editingEntryForm, setEditingEntryForm] = useState({title:'', notes:'', mileage_snapshot:'', created_at:''})
   const [rockautoEngines, setRockautoEngines] = useState([])
   const [rockautoCategories, setRockautoCategories] = useState([])
   const [rockautoParts, setRockautoParts] = useState([])
@@ -38,7 +154,7 @@ export default function VehicleDetail(){
   async function add(e){
     e.preventDefault()
     await axios.post(apiUrl(`/vehicle/${id}/maintenance`), form)
-    setForm({title:'', notes:'', mileage_snapshot:''})
+    setForm({title:'', notes:'', mileage_snapshot:'', created_at: todayDateInput()})
     fetch()
   }
   async function saveVehicle(e){
@@ -55,7 +171,7 @@ export default function VehicleDetail(){
 
   async function editEntry(entry){
     setEditingEntryId(entry.id)
-    setEditingEntryForm({title: entry.title || '', notes: entry.notes || '', mileage_snapshot: entry.mileage_snapshot ?? ''})
+    setEditingEntryForm({title: entry.title || '', notes: entry.notes || '', mileage_snapshot: entry.mileage_snapshot ?? '', created_at: formatDateInput(entry.created_at)})
   }
 
   async function deleteEntry(entryId){
@@ -68,12 +184,12 @@ export default function VehicleDetail(){
     if(!editingEntryId) return
     await axios.put(apiUrl(`/maintenance/${editingEntryId}`), editingEntryForm)
     setEditingEntryId(null)
-    setEditingEntryForm({title:'', notes:'', mileage_snapshot:''})
+    setEditingEntryForm({title:'', notes:'', mileage_snapshot:'', created_at:''})
     fetch()
   }
   function cancelEditingEntry(){
     setEditingEntryId(null)
-    setEditingEntryForm({title:'', notes:'', mileage_snapshot:''})
+    setEditingEntryForm({title:'', notes:'', mileage_snapshot:'', created_at:''})
   }
   async function createProject(){
     const response = await axios.post(apiUrl(`/vehicle/${id}/projects`), {})
@@ -132,6 +248,7 @@ export default function VehicleDetail(){
   if(!vehicle) return <div>Loading...</div>
   const owner = people.find(p => p.id === vehicle.owner_id)
   const canUseRockauto = Boolean(vehicle.make && vehicle.model && vehicle.year)
+  const mileageHistory = buildMileageHistory(entries, vehicle.mileage)
 
   return (
     <div className="stack">
@@ -144,6 +261,7 @@ export default function VehicleDetail(){
               {owner ? <Link to={`/people/${owner.id}`} className="badge accent-badge">Owner: {owner.name}</Link> : <span className="badge">No owner assigned</span>}
               {vehicle.vin ? <span className="badge">VIN: {vehicle.vin}</span> : null}
               {vehicle.mileage != null && vehicle.mileage !== '' ? <span className="badge">Mileage: {Number(vehicle.mileage).toLocaleString()}</span> : null}
+              <span className="badge">Created: {formatDisplayDate(vehicle.created_at)}</span>
               <span className="badge">{entries.length} maintenance entries</span>
             </div>
           </div>
@@ -156,6 +274,7 @@ export default function VehicleDetail(){
           <input className="input" placeholder="Model" value={vehicleForm.model} onChange={e=>setVehicleForm({...vehicleForm, model:e.target.value})} />
           <input className="input" placeholder="Year" value={vehicleForm.year} onChange={e=>setVehicleForm({...vehicleForm, year:e.target.value})} />
           <input className="input" placeholder="Mileage" value={vehicleForm.mileage} onChange={e=>setVehicleForm({...vehicleForm, mileage:e.target.value})} />
+          <input className="input" type="date" value={vehicleForm.created_at} onChange={e=>setVehicleForm({...vehicleForm, created_at:e.target.value})} />
           <select className="select" value={vehicleForm.owner_id || ''} onChange={e=>setVehicleForm({...vehicleForm, owner_id: e.target.value || null})}>
               <option value="">No owner</option>
               {people.map(p=> <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -167,11 +286,22 @@ export default function VehicleDetail(){
         </form>
       ) : (
         <div className="action-row">
-          <button className="button button-secondary" onClick={()=>{setVehicleForm({vin:vehicle.vin, make:vehicle.make, model:vehicle.model, year:vehicle.year, mileage:vehicle.mileage ?? '', owner_id:vehicle.owner_id}); setEditingVehicle(true)}}>Edit vehicle</button>
+          <button className="button button-secondary" onClick={()=>{setVehicleForm({vin:vehicle.vin, make:vehicle.make, model:vehicle.model, year:vehicle.year, mileage:vehicle.mileage ?? '', created_at: formatDateInput(vehicle.created_at), owner_id:vehicle.owner_id}); setEditingVehicle(true)}}>Edit vehicle</button>
           <button className="button button-primary" onClick={createProject}>New project</button>
           <button className="button button-danger" onClick={deleteVehicle}>Delete vehicle</button>
         </div>
       )}
+      </section>
+
+      <section className="panel">
+        <div className="section-head">
+          <div>
+            <h3 className="section-title">Mileage trend</h3>
+            <p className="muted">This graph uses maintenance mileage snapshots and the current stored vehicle mileage.</p>
+          </div>
+          <span className="badge">{mileageHistory.length} data points</span>
+        </div>
+        <MileageChart points={mileageHistory} />
       </section>
 
       <section className="panel">
@@ -304,6 +434,7 @@ export default function VehicleDetail(){
         <form onSubmit={add} className="form-grid">
           <input className="input" value={form.title} onChange={e=>setForm({...form, title:e.target.value})} placeholder="Entry title" />
           <input className="input" value={form.mileage_snapshot} onChange={e=>setForm({...form, mileage_snapshot:e.target.value})} placeholder="Mileage snapshot" />
+          <input className="input" type="date" value={form.created_at} onChange={e=>setForm({...form, created_at:e.target.value})} />
           <textarea className="textarea" value={form.notes} onChange={e=>setForm({...form, notes:e.target.value})} placeholder="Notes"></textarea>
           <div className="action-row">
             <button className="button button-primary">Add entry</button>
@@ -327,6 +458,7 @@ export default function VehicleDetail(){
                 <div className="entry-stack">
                   <input className="input" value={editingEntryForm.title} onChange={e=>setEditingEntryForm({...editingEntryForm, title:e.target.value})} />
                   <input className="input" value={editingEntryForm.mileage_snapshot} onChange={e=>setEditingEntryForm({...editingEntryForm, mileage_snapshot:e.target.value})} placeholder="Mileage snapshot" />
+                  <input className="input" type="date" value={editingEntryForm.created_at} onChange={e=>setEditingEntryForm({...editingEntryForm, created_at:e.target.value})} />
                   <textarea className="textarea" value={editingEntryForm.notes} onChange={e=>setEditingEntryForm({...editingEntryForm, notes:e.target.value})} />
                   <div className="action-row">
                     <button type="submit" className="button button-primary">Save</button>
@@ -339,7 +471,7 @@ export default function VehicleDetail(){
                 <div className="record-header">
                   <div>
                     <h4 className="entry-title">{m.title}</h4>
-                    <p className="record-meta">{new Date(m.created_at).toLocaleString()}</p>
+                    <p className="record-meta">{formatDisplayDate(m.created_at)}</p>
                   </div>
                 </div>
                 {m.mileage_snapshot != null && m.mileage_snapshot !== '' ? <div className="meta-row"><span className="badge accent-badge">Mileage at service: {Number(m.mileage_snapshot).toLocaleString()}</span></div> : null}
