@@ -7,8 +7,9 @@ import { formatDisplayDate, todayDateInput } from '../date'
 export default function VehiclesPage(){
   const [vehicles, setVehicles] = useState([])
   const [people, setPeople] = useState([])
-  const [form, setForm] = useState({year:'', make:'', model:'', mileage:'', created_at: todayDateInput(), owner_id:''})
+  const [form, setForm] = useState({year:'', make:'', model:'', vin:'', mileage:'', created_at: todayDateInput(), owner_id:''})
   const [ownerFilter, setOwnerFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(()=>{fetch();}, [])
   async function fetch(){
@@ -19,14 +20,21 @@ export default function VehiclesPage(){
   async function add(e){
     e.preventDefault()
     await axios.post(apiUrl('/vehicles'), form)
-    setForm({year:'', make:'', model:'', mileage:'', created_at: todayDateInput(), owner_id:''})
+    setForm({year:'', make:'', model:'', vin:'', mileage:'', created_at: todayDateInput(), owner_id:''})
     fetch()
   }
 
   const filteredVehicles = vehicles.filter(vehicle => {
-    if (ownerFilter === 'all') return true
-    if (ownerFilter === 'unassigned') return !vehicle.owner_id
-    return String(vehicle.owner_id) === ownerFilter
+    if (ownerFilter !== 'all') {
+      if (ownerFilter === 'unassigned' && vehicle.owner_id) return false
+      if (ownerFilter !== 'unassigned' && String(vehicle.owner_id) !== ownerFilter) return false
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      const text = `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''} ${vehicle.vin || ''}`.toLowerCase()
+      if (!text.includes(q)) return false
+    }
+    return true
   })
 
   return (
@@ -51,6 +59,7 @@ export default function VehiclesPage(){
           <input className="input" placeholder="Year" value={form.year} onChange={e=>setForm({...form, year:e.target.value})} />
           <input className="input" placeholder="Make" value={form.make} onChange={e=>setForm({...form, make:e.target.value})} />
           <input className="input" placeholder="Model" value={form.model} onChange={e=>setForm({...form, model:e.target.value})} />
+          <input className="input" placeholder="VIN" value={form.vin} onChange={e=>setForm({...form, vin:e.target.value})} />
           <input className="input" placeholder="Mileage" value={form.mileage} onChange={e=>setForm({...form, mileage:e.target.value})} />
           <input className="input" type="date" value={form.created_at} onChange={e=>setForm({...form, created_at:e.target.value})} />
           <select className="select" value={form.owner_id} onChange={e=>setForm({...form, owner_id: e.target.value || ''})}>
@@ -59,6 +68,21 @@ export default function VehiclesPage(){
         </select>
           <button className="button button-primary">Add vehicle</button>
         </form>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h3 className="section-title">Search vehicles</h3>
+            <p className="muted">Filter by year, make, model, or VIN.</p>
+          </div>
+        </div>
+        <input
+          className="input"
+          placeholder="Search by year, make, model, or VIN…"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+        />
       </section>
 
       <section className="panel">
@@ -111,6 +135,7 @@ export default function VehiclesPage(){
                 </div>
                 <div className="meta-row">
                   {v.mileage != null && v.mileage !== '' ? <span className="badge accent-badge">Mileage: {Number(v.mileage).toLocaleString()}</span> : null}
+                  {v.vin ? <span className="badge">VIN: {v.vin}</span> : null}
                 </div>
                 <div className="action-row">
                   <Link to={`/vehicles/${v.id}`} className="button button-secondary">Open record</Link>
@@ -124,7 +149,7 @@ export default function VehiclesPage(){
           <h3 className="section-title">No matching vehicles</h3>
           <p className="muted">
             {vehicles.length
-              ? 'No vehicles match the selected owner filter.'
+              ? 'No vehicles match the selected filters.'
               : 'Add your first vehicle to start tracking maintenance history.'}
           </p>
         </div>
