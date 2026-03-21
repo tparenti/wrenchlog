@@ -764,6 +764,27 @@ def api_equipment_maintenance(equipment_id):
     return jsonify([maintenance_to_dict(m) for m in entries])
 
 
+@app.route('/api/stats', methods=['GET'])
+def api_stats():
+    people_count = Person.query.count()
+    vehicle_count = Vehicle.query.count()
+    equipment_count = Equipment.query.count()
+    maintenance_count = Maintenance.query.count()
+    recent_maintenance = (
+        Maintenance.query
+        .order_by(Maintenance.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    return jsonify({
+        'people': people_count,
+        'vehicles': vehicle_count,
+        'equipment': equipment_count,
+        'maintenance_entries': maintenance_count,
+        'recent_maintenance': [maintenance_to_dict(m) for m in recent_maintenance],
+    })
+
+
 @app.route('/api/maintenance/<int:entry_id>', methods=['GET','PUT','DELETE'])
 def api_maintenance_entry(entry_id):
     m = Maintenance.query.get_or_404(entry_id)

@@ -18,7 +18,7 @@ WrenchLog is a Dockerized maintenance tracker for people, vehicles, and equipmen
 ## Features
 
 - Create and edit people
-- Create and edit vehicles
+- Create and edit vehicles (including VIN)
 - Create and edit equipment
 - Assign vehicles and equipment to people
 - Add, edit, and delete maintenance entries
@@ -26,6 +26,8 @@ WrenchLog is a Dockerized maintenance tracker for people, vehicles, and equipmen
 - Browse read-only RockAuto part categories and listings from vehicle records
 - View person detail pages with related vehicles and equipment
 - Responsive React UI with light and dark themes
+- Live dashboard on the home page showing current counts of people, vehicles, equipment, and maintenance entries, plus a recent maintenance summary
+- Search vehicles by year, make, model, or VIN directly from the vehicles list page
 
 ## Run Modes
 
