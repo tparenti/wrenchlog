@@ -22,6 +22,9 @@ WrenchLog is a Dockerized maintenance tracker for people, vehicles, and equipmen
 - Create and edit equipment
 - Assign vehicles and equipment to people
 - Add, edit, and delete maintenance entries
+- Create and manage projects tied to vehicles, with status tracking (planning, in-progress, done)
+- Add tasks and milestone tasks to projects
+- Track parts lists per project, including part numbers, quantities, and estimated and actual costs
 - Upload and manage project photos
 - Browse read-only RockAuto part categories and listings from vehicle records
 - View person detail pages with related vehicles and equipment
